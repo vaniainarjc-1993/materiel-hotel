@@ -536,7 +536,7 @@ function nextCode(){let m=0;for(const a of S.articles){const r=/^ART-(\d+)$/.exe
   if(!db){setConn(false,"Base de données indisponible");renderAll();return}
   try{myId=user?await user.id():null}catch(e){}
   try{const c=user?await user.can("data.write"):null;if(c===false)canWrite=false}catch(e){}
-  try{canAdmin=!!(user&&user.canEdit&&user.canEdit())}catch(e){}
+  try{canAdmin=!!(user&&user.canEdit&&user.canEdit())}catch(e){}renderToolbar();
   $("#ro").hidden=canWrite;
   setConn(true,"Synchronisé");
   const sub=(name,q)=>q.onSnapshot(snap=>{S[name]=snap.docs.map(d=>{const o={id:d.id,...d.data()};if(o.hotel==="IBS")o.hotel="IBIS";return o});loaded[name]=true;if(name==="stock")rebuildStock();scheduleRender()},e=>{setConn(false,"Hors ligne ("+e.code+")")});
