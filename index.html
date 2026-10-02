@@ -326,30 +326,42 @@ window.OWNER_EMAIL="vaniainarjc@gmail.com";
 })();
 </script>
 <style>
-#login[hidden]{display:none}
+#login[hidden],#login [hidden]{display:none!important}
 #login{position:fixed;inset:0;z-index:100;background:var(--bg,#eef1f0);display:flex;align-items:center;justify-content:center;padding:20px}
 #login .box{background:var(--surface,#fff);border:1px solid var(--line,#d6dcda);border-radius:16px;padding:28px 26px;max-width:420px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.12);text-transform:none}
 #login h1{font-size:22px;margin:0 0 6px}#login p{color:var(--muted,#667);font-size:14px;margin:6px 0 16px}
 #login button{font:inherit;font-weight:600;padding:11px 18px;border-radius:10px;border:1px solid var(--line,#ccd);background:#fff;cursor:pointer;display:inline-flex;gap:10px;align-items:center}
 #login .err{color:#b3332b;font-size:13px;margin-top:12px}
+#login form.lk{display:flex;flex-direction:column;gap:8px;text-align:left;margin:4px 0 0}
+#login form.lk label{font-size:13px;font-weight:600;color:var(--ink,#123)}
+#login form.lk input{font:inherit;font-size:15px;padding:11px 12px;border:1px solid var(--line,#ccd);border-radius:10px;text-transform:none;width:100%;box-sizing:border-box}
+#login form.lk button{justify-content:center;background:var(--accent,#0e5a53);color:#fff;border-color:transparent}
+#login button:disabled{opacity:.6;cursor:default}
+#login .or{display:flex;align-items:center;gap:10px;color:var(--muted,#667);font-size:12px;margin:16px 0}
+#login .or:before,#login .or:after{content:"";flex:1;height:1px;background:var(--line,#d6dcda)}
+#login .ok{color:#1e7846;font-size:14px;margin-top:12px;line-height:1.45}#login .ok:empty,#login .err:empty{display:none}
 #acct{display:flex;gap:8px;align-items:center;font-size:12px;text-transform:none}
 #acct button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;cursor:pointer}
 </style>
 <div id="login" hidden><div class="box">
-  <h1>Matériel Hôtel</h1><p id="login-msg">NOVOTEL &amp; IBIS — connectez-vous avec votre compte Google.</p>
-  <button id="login-btn" type="button"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Se connecter avec Google</button>
+  <h1>Matériel Hôtel</h1><p id="login-msg">NOVOTEL &amp; IBIS — connectez-vous avec l'adresse e-mail enregistrée par l'administrateur.</p>
+  <div id="login-main"><form class="lk" id="lk-form" novalidate><label for="lk-mail">Votre adresse e-mail</label><input type="email" id="lk-mail" autocomplete="email" placeholder="prenom.nom@exemple.com"><button type="submit" id="lk-btn">Recevoir mon lien de connexion</button></form>
+  <div class="or" id="lk-or">ou</div>
+  <button id="login-btn" type="button"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Se connecter avec Google</button></div>
+  <div class="ok" id="login-ok"></div>
   <div class="err" id="login-err"></div>
 </div></div>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,onAuthStateChanged,signOut,isSignInWithEmailLink,sendSignInLinkToEmail,signInWithEmailLink} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import {getDatabase,ref,onValue,get,set,update,remove,push,runTransaction,query,orderByChild,limitToLast} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
 const app=initializeApp(window.FB_CONFIG),auth=getAuth(app),rdb=getDatabase(app);
 const $=s=>document.querySelector(s);
 const ekey=e=>String(e||"").toLowerCase().replace(/\./g,",");
 const clean=o=>JSON.parse(JSON.stringify(o,(k,v)=>v===undefined?null:v));
 const P=p=>ref(rdb,"data/"+p);
-let role=null,me=null;
+let role=null,me=null,dept="",acc=null;
+const parseAcc=v=>v==null?null:(typeof v==="string"?{role:v}:v);
 function mkSnap(val){return{docs:Object.entries(val||{}).map(([id,v])=>({id,data:()=>v}))}}
 function docRef(coll,id){
   const path=coll+"/"+id;
@@ -381,7 +393,7 @@ const userApi={
   isOwner:()=>me.email===window.OWNER_EMAIL,
   canEdit:()=>role==="admin",
   can:async n=>n==="data.write"?(role==="admin"||role==="contrib"):true,
-  profiles:async ids=>{const out={};await Promise.all(ids.map(async id=>{try{const s=await get(ref(rdb,"users/"+id+"/name"));out[id]={name:s.val()||""}}catch(e){out[id]={name:""}}}));return out}
+  profiles:async ids=>{const out={};await Promise.all(ids.map(async id=>{try{const s=await get(ref(rdb,"users/"+id));const v=s.val()||{};out[id]={name:(v.name||"")+(v.name&&v.dept?" ("+v.dept+")":"")}}catch(e){out[id]={name:""}}}));return out}
 };
 /* photos : stockées dans /photos/{id} (dataURL), cache mémoire + IndexedDB */
 const photoCache=new Map(),pending=new Map();let idb=null;
@@ -396,19 +408,38 @@ const assetsApi={
   upload:async blob=>{const d=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(blob)});const id="u"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);await set(ref(rdb,"photos/"+id),d);photoCache.set(id,d);idbPut(id,d);return{id,url:d}},
   delete:async id=>{await remove(ref(rdb,"photos/"+id));photoCache.delete(id)}
 };
-window.FB={rdb,auth,ref,get,set,update,remove,onValue,ekey,clean,photoCache,getPhoto,role:()=>role,me:()=>me,signOut:()=>signOut(auth)};
+window.FB={rdb,auth,ref,get,set,update,remove,onValue,ekey,clean,photoCache,getPhoto,role:()=>role,dept:()=>dept,me:()=>me,parseAcc,signOut:()=>signOut(auth)};
 $("#login-btn").onclick=async()=>{$("#login-err").textContent="";const pr=new GoogleAuthProvider();pr.setCustomParameters({prompt:"select_account"});
   try{await signInWithPopup(auth,pr)}catch(e){if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")await signInWithRedirect(auth,pr);else $("#login-err").textContent="Connexion impossible : "+(e.message||e.code)}};
+const LK="mh-email-link",okMail=e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+let pendingLink=false;
+const finishLink=async em=>{await signInWithEmailLink(auth,em,location.href);try{localStorage.removeItem(LK)}catch(e){}history.replaceState(null,"",location.pathname)};
+$("#lk-form").onsubmit=async ev=>{ev.preventDefault();const em=$("#lk-mail").value.trim().toLowerCase(),btn=$("#lk-btn"),er=$("#login-err"),ok=$("#login-ok");er.textContent="";ok.textContent="";
+  if(!okMail(em)){er.textContent="Adresse e-mail invalide.";return}
+  const old=btn.textContent;btn.disabled=true;btn.textContent="Vérification…";
+  try{
+    if(pendingLink){await finishLink(em);return}
+    if(em!==window.OWNER_EMAIL){let ex=false;try{ex=(await get(ref(rdb,"comptes/"+ekey(em)))).exists()}catch(e){ex=false}
+      if(!ex){er.textContent="Aucun compte pour cette adresse. Demandez à l'administrateur de vous créer un accès.";return}}
+    await sendSignInLinkToEmail(auth,em,{url:location.origin+location.pathname,handleCodeInApp:true});
+    try{localStorage.setItem(LK,em)}catch(e){}
+    ok.innerHTML=`Lien de connexion envoyé à <b>${em.replace(/</g,"&lt;")}</b>.<br>Ouvrez cet e-mail (regardez aussi dans les spams) et cliquez sur le lien, de préférence sur cet appareil.`;
+  }catch(x){const c=x&&x.code||"";er.textContent=c==="auth/quota-exceeded"?"Limite d'e-mails de connexion atteinte pour aujourd'hui. Réessayez demain ou connectez-vous avec Google.":c==="auth/invalid-action-code"||c==="auth/expired-action-code"?"Ce lien a expiré ou a déjà été utilisé : demandez-en un nouveau.":c==="auth/invalid-email"?"L'adresse ne correspond pas à celle qui a reçu le lien.":"Connexion impossible : "+((x&&x.message)||c)}
+  finally{btn.disabled=false;btn.textContent=old}};
+if(isSignInWithEmailLink(auth,location.href)){let em=null;try{em=localStorage.getItem(LK)}catch(e){}
+  if(em)finishLink(em).catch(x=>{history.replaceState(null,"",location.pathname);$("#login").hidden=false;$("#login-err").textContent="Ce lien a expiré ou a déjà été utilisé : demandez-en un nouveau."});
+  else{pendingLink=true;$("#login-msg").textContent="Pour terminer la connexion, confirmez l'adresse e-mail qui a reçu le lien.";$("#lk-btn").textContent="Se connecter";$("#lk-or").hidden=true;$("#login-btn").hidden=true}}
 let started=false;
 onAuthStateChanged(auth,async u=>{
   if(!u){$("#login").hidden=false;return}
   me=u;
-  try{await set(ref(rdb,"users/"+u.uid),{name:u.displayName||u.email,email:u.email,vu:Date.now()})}catch(e){}
-  if(u.email===window.OWNER_EMAIL)role="admin";
-  else{try{const s=await get(ref(rdb,"acces/"+ekey(u.email)));role=s.val()}catch(e){role=null}}
-  if(!role){$("#login").hidden=false;$("#login-msg").innerHTML=`Le compte <b>${u.email}</b> n'a pas encore accès.<br>Demandez à l'administrateur (${window.OWNER_EMAIL}) de vous ajouter, puis rechargez la page.`;$("#login-btn").textContent="Changer de compte";$("#login-btn").onclick=()=>signOut(auth);return}
+  const em=String(u.email||"").toLowerCase();
+  try{const s=await get(ref(rdb,"acces/"+ekey(em)));acc=parseAcc(s.val())}catch(e){acc=null}
+  role=em===window.OWNER_EMAIL?"admin":(acc&&acc.role)||null;dept=(acc&&acc.dept)||"";
+  if(role)try{await set(ref(rdb,"users/"+u.uid),{name:(acc&&acc.nom)||u.displayName||u.email,email:em,dept,vu:Date.now()})}catch(e){}
+  if(!role){$("#login").hidden=false;$("#login-main").hidden=true;$("#login-ok").textContent="";$("#login-msg").innerHTML=`Le compte <b>${u.email}</b> n'a pas d'accès.<br>Demandez à l'administrateur de vous créer un accès, puis reconnectez-vous.<br><br><button type="button" id="login-sw">Changer de compte</button>`;$("#login-sw").onclick=()=>signOut(auth).then(()=>location.reload());return}
   $("#login").hidden=true;
-  const ac=document.getElementById("acct");if(ac)ac.innerHTML=`<span title="${u.email}">${(u.displayName||u.email).split(" ")[0]} · ${({admin:"Administrateur",contrib:"Contributeur",viewer:"Lecture"})[role]||role}</span>${role==="admin"?'<button id="acct-acc" type="button">Accès</button>':""}<button id="acct-out" type="button">Déconnexion</button>`;
+  const ac=document.getElementById("acct");if(ac)ac.innerHTML=`<span title="${u.email}">${String((acc&&acc.nom)||u.displayName||u.email).split(" ")[0]}${dept?" · "+dept:""} · ${({admin:"Administrateur",contrib:"Contributeur",viewer:"Lecture"})[role]||role}</span>${role==="admin"?'<button id="acct-acc" type="button">Comptes</button>':""}<button id="acct-out" type="button">Déconnexion</button>`;
   const o=document.getElementById("acct-out");if(o)o.onclick=()=>signOut(auth).then(()=>location.reload());
   const a=document.getElementById("acct-acc");if(a)a.onclick=()=>window.accessPanel&&window.accessPanel();
   if(!started){started=true;window.__fbReady({db:dbApi,user:userApi,assets:(role==='admin'||role==='contrib')?assetsApi:null,downloads:null})}
@@ -751,19 +782,55 @@ function renderMoves(b){
 const ROLES={admin:"Administrateur (tout + gestion des accès)",contrib:"Contributeur (transferts, mouvements, articles)",viewer:"Lecture seule"};
 window.accessPanel=function(){
   const F=window.FB;if(!F)return;
-  const m=openModal(`<header><h2>Accès des collaborateurs</h2><button class="btn ghost sm" data-close>Fermer</button></header>
-   <div class="mb"><p class="hint" style="margin:0;text-transform:none">Ajoutez l'adresse Gmail (compte Google) de chaque collaborateur. Il se connecte ensuite avec « Se connecter avec Google ».</p>
-    <div class="fgrid"><label class="f">Email Google<input type="text" id="ac-mail" placeholder="prenom.nom@gmail.com" style="text-transform:none"></label>
-    <label class="f">Rôle<select id="ac-role">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${k==="contrib"?"selected":""}>${v}</option>`).join("")}</select></label></div>
-    <div><button class="btn primary" id="ac-add">+ Ajouter / modifier</button></div>
-    <div class="tablewrap"><table><thead><tr><th>Email</th><th>Rôle</th><th></th></tr></thead><tbody id="ac-list"><tr><td colspan="3" class="hint">Chargement…</td></tr></tbody></table></div>
-    <p class="hint" style="text-transform:none">Propriétaire : <b>${esc(window.OWNER_EMAIL)}</b> (toujours administrateur).</p><div class="err"></div></div>`);
-  const off=F.onValue(F.ref(F.rdb,"acces"),s=>{const v=s.val()||{};const L=$("#ac-list",m);if(!L){off();return}
-    L.innerHTML=Object.entries(v).sort().map(([k,r])=>`<tr><td style="text-transform:none">${esc(k.replace(/,/g,"."))}</td><td>${esc(ROLES[r]||r)}</td><td class="r"><button class="btn sm danger" data-del="${esc(k)}">Retirer</button></td></tr>`).join("")||`<tr><td colspan="3" class="hint">Aucun collaborateur pour l'instant.</td></tr>`;
-    L.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>confirmInline(b,"Confirmer ?",()=>F.remove(F.ref(F.rdb,"acces/"+b.dataset.del))))});
-  $("#ac-add",m).onclick=async()=>{const e=$("#ac-mail",m).value.trim().toLowerCase(),err=m.querySelector(".err");err.textContent="";
-    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){err.textContent="Adresse email invalide.";return}
-    try{await F.set(F.ref(F.rdb,"acces/"+F.ekey(e)),$("#ac-role",m).value);$("#ac-mail",m).value="";toast("Accès enregistré pour "+e)}catch(x){err.textContent=x.message}};
+  let deps={},accs={},editKey=null;
+  const m=openModal(`<header><h2>Comptes des collaborateurs</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb">
+    <p class="hint" style="margin:0;text-transform:none">Seul l'administrateur crée les comptes. Le collaborateur se connecte ensuite avec son adresse e-mail : il reçoit un lien de connexion par e-mail (ou utilise « Se connecter avec Google » si c'est une adresse Google).</p>
+    <div class="panel" style="padding:12px"><h2 style="margin:0 0 8px">Départements <small id="dp-n"></small></h2>
+     <div id="dp-list" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+     <div style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="dp-nom" placeholder="Ex. BANQUETING, CUISINE, ÉCONOMAT…" style="flex:1 1 220px"><button class="btn" id="dp-add">+ Créer le département</button></div></div>
+    <div class="panel" style="padding:12px"><h2 style="margin:0 0 8px" id="ac-title">Nouveau compte</h2>
+     <div class="fgrid">
+      <label class="f">Nom et prénom *<input type="text" id="ac-nom" placeholder="Ex. RAKOTO Jean"></label>
+      <label class="f">Adresse e-mail *<input type="text" inputmode="email" autocomplete="off" id="ac-mail" placeholder="prenom.nom@exemple.com" style="text-transform:none"></label>
+      <label class="f">Département *<select id="ac-dept"></select></label>
+      <label class="f">Rôle *<select id="ac-role">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${k==="contrib"?"selected":""}>${v}</option>`).join("")}</select></label>
+     </div>
+     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn primary" id="ac-add">Créer le compte</button><button class="btn ghost" id="ac-cancel" hidden>Annuler la modification</button></div>
+     <div class="err"></div></div>
+    <div class="tablewrap"><table><thead><tr><th>Nom</th><th>E-mail</th><th>Département</th><th>Rôle</th><th></th></tr></thead><tbody id="ac-list"><tr><td colspan="5" class="hint">Chargement…</td></tr></tbody></table></div>
+    <p class="hint" style="text-transform:none">Propriétaire : <b>${esc(window.OWNER_EMAIL)}</b> (toujours administrateur).</p></div>`,{wide:true});
+  const err=m.querySelector(".err");
+  const depNames=()=>Object.values(deps).map(d=>d.nom).sort((a,b)=>a.localeCompare(b));
+  const usedDept=n=>Object.values(accs).filter(a=>a.dept===n).length;
+  const drawDeps=()=>{const ns=Object.entries(deps).sort((a,b)=>a[1].nom.localeCompare(b[1].nom));$("#dp-n",m).textContent=ns.length;
+    $("#dp-list",m).innerHTML=ns.map(([id,d])=>{const u=usedDept(d.nom);return`<span class="chip">${esc(d.nom)} <span class="hint">· ${u}</span><button class="x" data-dpdel="${esc(id)}" title="${u?"Utilisé par "+u+" compte(s)":"Supprimer"}" aria-label="Supprimer ${esc(d.nom)}">×</button></span>`}).join("")||`<span class="hint">Aucun département. Créez-en un ci-dessous.</span>`;
+    $("#dp-list",m).querySelectorAll("[data-dpdel]").forEach(b=>b.onclick=()=>{const d=deps[b.dataset.dpdel];if(!d)return;const u=usedDept(d.nom);if(u){err.textContent=`Le département ${d.nom} est utilisé par ${u} compte(s) : changez-les d'abord.`;return}confirmInline(b,"?",()=>F.remove(F.ref(F.rdb,"departements/"+b.dataset.dpdel)).catch(x=>err.textContent=x.message))});
+    const sel=$("#ac-dept",m),cur=sel.value;sel.innerHTML=`<option value="">— Choisir —</option>`+depNames().map(n=>`<option ${n===cur?"selected":""}>${esc(n)}</option>`).join("");};
+  const drawAccs=()=>{const L=$("#ac-list",m);if(!L)return;
+    const rows=Object.entries(accs).sort((a,b)=>String(a[1].nom||a[0]).localeCompare(String(b[1].nom||b[0])));
+    L.innerHTML=rows.map(([k,a])=>`<tr><td><b>${esc(a.nom||"—")}</b></td><td style="text-transform:none">${esc(a.email||k.replace(/,/g,"."))}</td><td>${esc(a.dept||"—")}</td><td>${esc((ROLES[a.role]||a.role||"").split(" (")[0])}</td><td class="r" style="white-space:nowrap"><button class="btn sm" data-ed="${esc(k)}">Modifier</button> <button class="btn sm danger" data-del="${esc(k)}">Retirer</button></td></tr>`).join("")||`<tr><td colspan="5" class="hint">Aucun collaborateur pour l'instant.</td></tr>`;
+    L.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>confirmInline(b,"Confirmer ?",()=>F.update(F.ref(F.rdb),{["acces/"+b.dataset.del]:null,["comptes/"+b.dataset.del]:null}).then(()=>toast("Compte retiré")).catch(x=>err.textContent=x.message)));
+    L.querySelectorAll("[data-ed]").forEach(b=>b.onclick=()=>{const k=b.dataset.ed,a=accs[k];editKey=k;$("#ac-nom",m).value=a.nom||"";$("#ac-mail",m).value=a.email||k.replace(/,/g,".");$("#ac-mail",m).disabled=true;
+      const sel=$("#ac-dept",m);if(a.dept&&![...sel.options].some(o=>o.value===a.dept))sel.insertAdjacentHTML("beforeend",`<option>${esc(a.dept)}</option>`);sel.value=a.dept||"";$("#ac-role",m).value=a.role||"contrib";
+      $("#ac-title",m).textContent="Modifier le compte";$("#ac-add",m).textContent="Enregistrer les modifications";$("#ac-cancel",m).hidden=false;$("#ac-nom",m).focus()});
+    drawDeps()};
+  const resetForm=()=>{editKey=null;["#ac-nom","#ac-mail"].forEach(s=>$(s,m).value="");$("#ac-mail",m).disabled=false;$("#ac-dept",m).value="";$("#ac-role",m).value="contrib";$("#ac-title",m).textContent="Nouveau compte";$("#ac-add",m).textContent="Créer le compte";$("#ac-cancel",m).hidden=true};
+  const off1=F.onValue(F.ref(F.rdb,"departements"),s=>{if(!m.isConnected){off1();return}deps=s.val()||{};drawDeps()});
+  const off2=F.onValue(F.ref(F.rdb,"acces"),s=>{if(!m.isConnected){off2();return}const v=s.val()||{};accs={};for(const[k,x]of Object.entries(v))accs[k]=F.parseAcc(x);drawAccs()});
+  $("#dp-add",m).onclick=async()=>{const n=$("#dp-nom",m).value.trim().toUpperCase();err.textContent="";if(!n){err.textContent="Saisissez le nom du département.";return}
+    if(depNames().includes(n)){err.textContent="Ce département existe déjà.";return}
+    try{await F.set(F.ref(F.rdb,"departements/"+n.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Z0-9]+/g,"-").replace(/^-|-$/g,"").toLowerCase()||("d"+Date.now())),{nom:n,cree:Date.now()});$("#dp-nom",m).value="";$("#ac-dept",m).value=n;toast("Département "+n+" créé")}catch(x){err.textContent=x.message}};
+  $("#dp-nom",m).onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();$("#dp-add",m).click()}};
+  $("#ac-cancel",m).onclick=resetForm;
+  $("#ac-add",m).onclick=async()=>{err.textContent="";const nom=$("#ac-nom",m).value.trim().toUpperCase(),e=$("#ac-mail",m).value.trim().toLowerCase(),dept=$("#ac-dept",m).value,role=$("#ac-role",m).value;
+    if(!nom){err.textContent="Saisissez le nom et prénom.";return}
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){err.textContent="Adresse e-mail invalide.";return}
+    if(!dept){err.textContent="Choisissez le département (créez-le d'abord s'il n'existe pas).";return}
+    const k=editKey||F.ekey(e);
+    if(!editKey&&accs[k]){err.textContent="Un compte existe déjà pour cette adresse : utilisez « Modifier ».";return}
+    const prev=accs[k]||{};
+    try{await F.update(F.ref(F.rdb),{["acces/"+k]:{email:e,nom,dept,role,cree:prev.cree||Date.now(),maj:Date.now()},["comptes/"+k]:true});toast((editKey?"Compte modifié : ":"Compte créé : ")+e);resetForm()}catch(x){err.textContent=x.message}};
 };
 window.importInitial=async function(btn){
   const F=window.FB;if(!F)return;const inp=$("#adm-files");const files=[...(inp&&inp.files||[])];
@@ -784,7 +851,7 @@ function renderParams(b){
   const w=canWrite;const depSort=(a,b)=>((a.hotel==="LES2"?"0":a.hotel)+a.nom).localeCompare((b.hotel==="LES2"?"0":b.hotel)+b.nom);const usedG=new Set(S.articles.map(a=>a.groupeId)),usedU=new Set(S.articles.map(a=>a.uniteId));
   const deps=S.depots.slice().sort(depSort).filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2");
   const isAdm=window.FB&&window.FB.role()==="admin";
-  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Accès des collaborateurs</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
+  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
    <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2><div class="list">${deps.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
    <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
