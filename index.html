@@ -355,7 +355,7 @@ window.OWNER_EMAIL="vaniainarjc@gmail.com";
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,onAuthStateChanged,signOut,isSignInWithEmailLink,sendSignInLinkToEmail,signInWithEmailLink} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import {getDatabase,ref,onValue,get,set,update,remove,push,runTransaction,query,orderByChild,limitToLast} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
-const app=initializeApp(window.FB_CONFIG),auth=getAuth(app),rdb=getDatabase(app);
+const app=initializeApp(window.FB_CONFIG),auth=getAuth(app),rdb=getDatabase(app);auth.languageCode="fr";
 const $=s=>document.querySelector(s);
 const ekey=e=>String(e||"").toLowerCase().replace(/\./g,",");
 const clean=o=>JSON.parse(JSON.stringify(o,(k,v)=>v===undefined?null:v));
