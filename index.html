@@ -985,13 +985,14 @@ function moveTable(rows,compact){
   const a=A(),d=D(),u=U();
   if(!rows.length)return`<p class="hint">Aucun mouvement enregistré${compact?"":" pour ce filtre"}.</p>`;
   resolveNames(rows.map(m=>m.par));
-  return`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Type</th><th>Article</th><th>Dépôt</th><th class="r">Quantité</th><th>Unité</th>${compact?"":"<th>Note</th><th>Par</th>"}</tr></thead><tbody>${rows.map(m=>{const ar=a[m.articleId];const dep=d[m.depotId],dst=d[m.depotDestId];const t=MV[m.type]||{label:m.type,cls:""};const q=m.type==="inventaire"?((m.effets?.[0]?.delta||0)>0?"+":"")+fmt(m.effets?.[0]?.delta||0):(m.type==="sortie"?"−":m.type==="entree"?"+":"")+fmt(m.qte);return`<tr ${ar?`class="click" data-art="${ar.id}"`:""}><td class="mono">${fdate(m.date)}</td><td><span class="pill ${t.cls}">${t.label}</span>${m.numero?`<span class="mvno">${esc(m.numero)}</span>`:""}</td><td>${ar?esc(ar.nom):`<span class="hint">${esc(m.articleNom||"Article supprimé")}</span>`}</td><td>${esc(dep?.nom||"?")}${m.type==="transfert"?` → ${esc(dst?.nom||"?")}`:""}</td><td class="r num">${q}</td><td>${uS(u[ar?.uniteId]?.nom||"")}</td>${compact?"":`<td>${esc(m.note||"")}</td><td class="hint">${esc(names[m.par]||"")}</td>`}</tr>`}).join("")}</tbody></table></div>`;
+  return`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Type</th><th>Article</th><th>Dépôt</th><th class="r">Quantité</th><th>Unité</th>${compact?"":"<th>Note</th><th>Par</th>"+(canAdmin?"<th></th>":"")}</tr></thead><tbody>${rows.map(m=>{const ar=a[m.articleId];const dep=d[m.depotId],dst=d[m.depotDestId];const t=MV[m.type]||{label:m.type,cls:""};const q=m.type==="inventaire"?((m.effets?.[0]?.delta||0)>0?"+":"")+fmt(m.effets?.[0]?.delta||0):(m.type==="sortie"?"−":m.type==="entree"?"+":"")+fmt(m.qte);return`<tr ${ar?`class="click" data-art="${ar.id}"`:""}><td class="mono">${fdate(m.date)}</td><td><span class="pill ${t.cls}">${t.label}</span>${m.numero?`<span class="mvno">${esc(m.numero)}</span>`:""}</td><td>${ar?esc(ar.nom):`<span class="hint">${esc(m.articleNom||"Article supprimé")}</span>`}</td><td>${esc(dep?.nom||"?")}${m.type==="transfert"?` → ${esc(dst?.nom||"?")}`:""}</td><td class="r num">${q}</td><td>${uS(u[ar?.uniteId]?.nom||"")}</td>${compact?"":`<td>${esc(m.note||"")}</td><td class="hint">${esc(names[m.par]||"")}</td>${canAdmin?`<td><button class="btn sm ghost" data-mvdel="${m.id}" title="${m.transfertId?"Supprimer le transfert lié":m.majId?"Annuler la mise à jour liée":"Supprimer ce mouvement"}" aria-label="Supprimer">🗑</button></td>`:""}`}</tr>`}).join("")}</tbody></table></div>`;
 }
 function renderMoves(b){
   const depIds=new Set(depotsVis().map(d=>d.id)),a=A(),d=D();const q=ui.mvQ.trim().toLowerCase();
   const rows=S.mouvements.filter(m=>(m.effets||[]).some(e=>depIds.has(e.depotId))&&(!ui.mvType||m.type===ui.mvType)&&(!q||((a[m.articleId]?.nom||m.articleNom||"")+" "+(d[m.depotId]?.nom||"")+" "+(d[m.depotDestId]?.nom||"")+" "+(m.note||"")+" "+(m.numero||"")).toLowerCase().includes(q)));
   b.innerHTML=(loaded.mouvements?moveTable(rows,false):`<div class="empty"><p>Chargement…</p></div>`);
   b.querySelectorAll("[data-art]").forEach(el=>el.onclick=()=>articleDetail(el.dataset.art));
+  b.querySelectorAll("[data-mvdel]").forEach(el=>el.onclick=e=>{e.stopPropagation();annulMove(el.dataset.mvdel)});
 }
 
 /* ---------- Params ---------- */
@@ -1507,13 +1508,14 @@ function transferView(t){
   const tot=ls.reduce((s,l)=>s+(+l.qte||0),0);
   const m=openModal(`<header><div class="trh"><h2>${isDecl(t)?esc(natTitre(t)):"Transfert"}</h2><span class="trno">N° ${esc(t.numero)}</span>${trPill(t)}</div><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb">
-    ${t.statut==="valide"?`<p class="lock">🔒 Transfert validé : le stock a été déplacé. Il ne peut plus être modifié ni supprimé.</p>`:`<p class="lock warn">Brouillon : le stock n'a pas encore été déplacé.</p>`}
+    ${t.statut==="valide"?`<p class="lock">🔒 Transfert validé : le stock a été déplacé. Il ne peut plus être modifié${canAdmin?" (l'administrateur peut le supprimer : le stock est alors remis)":" ni supprimé"}.</p>`:`<p class="lock warn">Brouillon : le stock n'a pas encore été déplacé.</p>`}
     <dl class="kv"><dt>Destination</dt><dd><b>${esc(dm[t.destId]?.nom||"—")}</b></dd>${isDecl(t)?`<dt>Nature</dt><dd><b>${t.nature?NAT[t.nature]:"—"}</b></dd>`:`<dt>Type</dt><dd>${t.type?`<b class="${isPonct(t)?"ponct":""}">${esc(typeTxt(t))}</b>`:"—"}</dd>`}<dt>Date de sortie</dt><dd>${fdate(t.date)}</dd>${(t.evtDate||t.evtNom||t.note)?`<dt>Événement</dt><dd>${esc(evtTxt(t))}</dd>`:""}<dt>Créé</dt><dd>${fdt(t.cree)}${names[t.creePar]?" · "+esc(names[t.creePar]):""}</dd>${t.statut==="valide"?`<dt>Validé</dt><dd>${fdt(t.valideLe)}${names[t.validePar]?" · "+esc(names[t.validePar]):""}</dd>`:""}</dl>
     <div class="tablewrap"><table><thead><tr><th>Article</th><th>Depuis</th><th class="r">Quantité</th><th>Unité</th></tr></thead><tbody>${ls.map(l=>{const ar=a[l.articleId],s=photoSrc(ar);return`<tr><td><div class="artcell">${s?`<img class="thumb lg zoomable" src="${esc(s)}" data-zoom="${esc(s)}" data-cap="${esc(ar?.nom||"")}" alt="">`:`<span class="thumb lg"></span>`}<div><b>${esc(ar?.nom||l.articleNom||"Article supprimé")}</b><div class="hint mono">${esc(ar?.code||"")}</div></div></div></td><td>${esc(dm[l.srcId]?.nom||"—")}</td><td class="r num"><b>${fmt(l.qte)}</b></td><td>${uS(u[ar?.uniteId]?.nom||"")}</td></tr>`}).join("")}</tbody><tfoot><tr><td colspan="2"><b>Total</b></td><td class="r num"><b>${fmt(tot)}</b></td><td></td></tr></tfoot></table></div>
    </div>
-   <footer>${canWrite?`<button class="btn left" id="tv-copy">Copier en nouveau brouillon</button>`:""}<button class="btn" id="tv-print">🖨 Fiche / PDF</button><button class="btn primary" data-close>Fermer</button></footer>`,{wide:true});
+   <footer>${canAdmin?`<button class="btn danger" id="tv-del">🗑 Supprimer</button>`:""}${canWrite?`<button class="btn left" id="tv-copy">Copier en nouveau brouillon</button>`:""}<button class="btn" id="tv-print">🖨 Fiche / PDF</button><button class="btn primary" data-close>Fermer</button></footer>`,{wide:true});
   const c=$("#tv-copy",m);if(c)c.onclick=()=>{closeModal();transferEditor({kind:t.kind,nature:t.nature,lignes:t.lignes.map(l=>({...l})),destId:t.destId,note:t.note,evtNom:t.evtNom,evtDate:t.evtDate,type:t.type,dateRetour:t.dateRetour})};
   $("#tv-print",m).onclick=()=>transferSheet(t);
+  const tdl=$("#tv-del",m);if(tdl)tdl.onclick=()=>{closeModal();annulTransfer(t)};
 }
 
 /* ---------- Fiche de sortie (aperçu, impression, PDF) ---------- */
@@ -1627,8 +1629,9 @@ async function recordMove(mv,extraArts={}){
   if(mv.type==="inventaire")effets.push({depotId:mv.depotId,delta:mv.qte-qty(mv.articleId,mv.depotId)});
   const art=S.articles.find(a=>a.id===mv.articleId)||extraArts[mv.articleId];
   const [y,mo,d]=mv.date.split("-").map(Number);const dateTs=new Date(y,mo-1,d,12).getTime();
-  await db.collection("mouvements").doc().set({...mv,effets,articleNom:art?.nom||"",dateTs,ts:Date.now(),par:myId||null});
+  const mref=db.collection("mouvements").doc();await mref.set({...mv,effets,articleNom:art?.nom||"",dateTs,ts:Date.now(),par:myId||null});
   for(const e of effets){const k=mv.articleId+"__"+e.depotId;const nv=Math.round((qty(mv.articleId,e.depotId)+e.delta)*1000)/1000;stockMap[k]=nv;await db.collection("stock").doc(k).set({articleId:mv.articleId,depotId:e.depotId,qte:nv,maj:Date.now()})}
+  return mref.id;
 }
 
 /* ---------- Importations : contrôle de stock (Excel STOCKS DISPO) + réceptions fournisseur (PDF / Excel) ---------- */
@@ -1886,7 +1889,7 @@ async function majShow(cur,box){
   const f=ui.majF||{d:"",q:"",s:""};
   const rows=ecs.filter(e=>(!f.d||e.d===f.d)&&(!f.s||(f.s==="+"?e.ap>e.av:e.ap<e.av))&&(!f.q||(e.n||"").toLowerCase().includes(f.q.toLowerCase())));
   let sp=0,sm=0;for(const e of rows){const d=e.ap-e.av;if(d>0)sp+=d;else sm-=d}
-  box.innerHTML=`<h2>État des écarts du ${fdate(cur.date)} <small>${fhm(cur.ts)} · par ${esc(cur.parNom||"—")}</small></h2>
+  box.innerHTML=`<h2>État des écarts du ${fdate(cur.date)} <small>${fhm(cur.ts)} · par ${esc(cur.parNom||"—")}</small></h2>${canAdmin?`<div style="display:flex;justify-content:flex-end;margin:-4px 0 6px"><button class="btn sm danger" id="maj-an">↶ Annuler cette mise à jour</button></div>`:""}
    <dl class="kv"><dt>Fichier</dt><dd>${uS(cur.fichier||"")}${cur.exportDate?` · export du ${esc(cur.exportDate)}`:""}</dd><dt>Lignes</dt><dd>${cur.lignesRetenues||0} retenues sur ${cur.lignes||0} (${cur.nIgnores||0} dépôts ignorés)</dd><dt>Résultat</dt><dd><b>${cur.nEcarts||0}</b> écart${(cur.nEcarts||0)>1?"s":""} corrigé${(cur.nEcarts||0)>1?"s":""} (+${fmt(cur.hausse)} / −${fmt(cur.baisse)}) · <b>${cur.nCrees||0}</b> article${(cur.nCrees||0)>1?"s":""} créé${(cur.nCrees||0)>1?"s":""} · ${cur.nRenommes||0} nom${(cur.nRenommes||0)>1?"s":""} aligné${(cur.nRenommes||0)>1?"s":""}</dd></dl>
    <div class="trx-filters"><input type="search" id="mf-q" placeholder="Rechercher un article…" value="${esc(f.q)}"><select id="mf-d"><option value="">Tous les dépôts</option>${deps.map(id=>`<option value="${id}" ${f.d===id?"selected":""}>${esc(dm[id]?.nom||id)}</option>`).join("")}</select><select id="mf-s"><option value="">Hausses et baisses</option><option value="+" ${f.s==="+"?"selected":""}>Hausses</option><option value="-" ${f.s==="-"?"selected":""}>Baisses</option></select><button class="btn sm" id="mf-x">⬇ Exporter (Excel)</button></div>
    ${rows.length?`<div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Dépôt</th><th>Article</th><th class="r">Avant</th><th class="r">Après</th><th class="r">Écart</th></tr></thead><tbody>${rows.slice(0,3000).map(e=>{const d=e.ap-e.av;return`<tr><td>${esc(dm[e.d]?.nom||e.d)}</td><td><b>${esc(e.n)}</b></td><td class="r num">${fmt(e.av)}</td><td class="r num"><b>${fmt(e.ap)}</b></td><td class="r num ${d>0?"iv-good":"iv-bad"}"><b>${d>0?"+":""}${fmt(d)}</b></td></tr>`}).join("")}</tbody><tfoot><tr><td colspan="4" class="r"><b>Total ${rows.length} ligne${rows.length>1?"s":""}</b></td><td class="r num"><span class="iv-good">+${fmt(sp)}</span> / <span class="iv-bad">−${fmt(sm)}</span></td></tr></tfoot></table></div>`:`<p class="lock">${ecs.length?"Aucun écart pour ce filtre.":"✓ Aucun écart lors de cette mise à jour."}</p>`}
@@ -1896,6 +1899,7 @@ async function majShow(cur,box){
   $("#mf-q",box).oninput=e=>{const v=e.target.value;clearTimeout(majShow._t);majShow._t=setTimeout(()=>{setF("q",v);const i=$("#mf-q",box);if(i){i.focus();i.setSelectionRange(v.length,v.length)}},250)};
   $("#mf-d",box).onchange=e=>setF("d",e.target.value);$("#mf-s",box).onchange=e=>setF("s",e.target.value);
   box.querySelectorAll("[data-art]").forEach(el=>el.onclick=()=>articleDetail(el.dataset.art));
+  {const an=$("#maj-an",box);if(an)an.onclick=()=>annulMaj(cur)}
   $("#mf-x",box).onclick=async()=>{try{await loadLib("xlsx");const data=rows.map(e=>({"Dépôt":dm[e.d]?.nom||e.d,"Article":e.n,"Avant":e.av,"Après":e.ap,"Écart":Math.round((e.ap-e.av)*1000)/1000}));
     const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(data.length?data:[{"Dépôt":"","Article":"Aucun écart","Avant":"","Après":"","Écart":""}]);ws["!cols"]=[{wch:34},{wch:60},{wch:10},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,"Écarts");
     const info=XLSX.utils.aoa_to_sheet([["Mise à jour du",fdate(cur.date)+" "+fhm(cur.ts)],["Par",cur.parNom||""],["Fichier",cur.fichier||""],["Export",cur.exportDate||""],["Écarts",cur.nEcarts||0],["Articles créés",cur.nCrees||0]]);XLSX.utils.book_append_sheet(wb,info,"Infos");
@@ -2018,7 +2022,7 @@ function dupTool(){
 
 /* onglet « Réceptions » (livraisons fournisseurs) */
 function recList(){
-  const out=S.receptions.map(r=>({id:r.id,src:"imp",date:r.date||"",ts:r.cree||0,fournisseur:r.fournisseur||"",facture:r.facture||"",factureDate:r.factureDate||"",bl:r.bl||"",blDate:r.blDate||"",fichier:r.fichier||"",par:r.par,lignes:(r.lignes||[]).filter(Boolean)}));
+  const out=S.receptions.map(r=>({id:r.id,src:"imp",date:r.date||"",ts:r.cree||0,fournisseur:r.fournisseur||"",facture:r.facture||"",factureDate:r.factureDate||"",bl:r.bl||"",blDate:r.blDate||"",fichier:r.fichier||"",par:r.par,mvIds:r.mvIds||[],lignes:(r.lignes||[]).filter(Boolean)}));
   const known=out.map(r=>nrm(r.facture)).filter(Boolean),g=new Map();
   for(const m of S.mouvements){if(m.type!=="entree"||!/RECEPTION/.test(nrm(m.note||"")))continue;const nk=nrm(m.note);if(known.some(f=>nk.includes(f)))continue;
     let r=g.get(nk);if(!r){const raw=String(m.note||""),fm=/\b(FA\s?\d[\w-]*)/i.exec(raw)||/FACT(?:URE)?\s*(?:N[°O]?\s*)?([A-Z]*\d[\w-]*)/i.exec(raw),bm=/\bBL\s*(?:N[°O]?\s*)?([A-Z]*\s?\d[\w-]*)/i.exec(raw);
@@ -2033,11 +2037,59 @@ function renderRec(b){
   resolveNames(list.map(r=>r.par));
   b.innerHTML=`<div class="grid-maj"><div class="panel"><h2>Livraisons reçues <small>${list.length}</small></h2>${list.length?`<div class="list" style="max-height:66vh;overflow:auto">${list.map(r=>{const tq=r.lignes.reduce((s,l)=>s+(+l.qte||0),0);return`<div class="li click ${r.id===ui.rcSel?"sel":""}" data-rc="${r.id}"><div class="t"><b>${esc(r.fournisseur||"Fournisseur ?")}</b><span>${r.facture?"Facture "+esc(r.facture):""}${r.bl?" · BL "+esc(r.bl):""}</span><span class="hint">${r.date?fdate(r.date):""} · ${r.lignes.length} ligne${r.lignes.length>1?"s":""} · ${fmt(tq)} unités</span></div></div>`}).join("")}</div>`:`<p class="hint">Aucune livraison importée.${canAdmin?" Utilisez « Importer une livraison ».":""}</p>`}</div>
    <div class="panel">${cur?`<h2>${esc(cur.fournisseur||"Livraison")} <small>${cur.date?fdate(cur.date):""}</small></h2>
-    <dl class="kv">${cur.facture?`<dt>Facture</dt><dd><b>${esc(cur.facture)}</b>${cur.factureDate?" du "+esc(cur.factureDate):""}</dd>`:""}${cur.bl?`<dt>Bon de livraison</dt><dd><b>${esc(cur.bl)}</b>${cur.blDate?" du "+esc(cur.blDate):""}</dd>`:""}${cur.fichier?`<dt>Fichier</dt><dd>${uS(cur.fichier)}</dd>`:""}<dt>Enregistré</dt><dd>${cur.ts?new Date(cur.ts).toLocaleString("fr-FR"):""}${cur.par&&names[cur.par]?" par "+esc(names[cur.par]):""}${cur.src==="mvt"?" (reconstitué depuis les mouvements)":""}</dd></dl>
+    <dl class="kv">${cur.facture?`<dt>Facture</dt><dd><b>${esc(cur.facture)}</b>${cur.factureDate?" du "+esc(cur.factureDate):""}</dd>`:""}${cur.bl?`<dt>Bon de livraison</dt><dd><b>${esc(cur.bl)}</b>${cur.blDate?" du "+esc(cur.blDate):""}</dd>`:""}${cur.fichier?`<dt>Fichier</dt><dd>${uS(cur.fichier)}</dd>`:""}<dt>Enregistré</dt><dd>${canAdmin?`<button class="btn sm danger" id="rc-an" style="float:right">↶ Annuler cette livraison</button>`:""}${cur.ts?new Date(cur.ts).toLocaleString("fr-FR"):""}${cur.par&&names[cur.par]?" par "+esc(names[cur.par]):""}${cur.src==="mvt"?" (reconstitué depuis les mouvements)":""}</dd></dl>
     <div class="tablewrap" style="max-height:56vh;overflow:auto;margin-top:10px"><table><thead><tr><th></th><th>Article</th><th>Dépôt</th><th class="r">Quantité</th><th></th></tr></thead><tbody>${cur.lignes.map(l=>{const ar=a[l.articleId],s=photoSrc(ar);return`<tr class="click" data-art="${l.articleId}"><td>${s?`<img class="thumb" src="${esc(s)}" alt="" loading="lazy">`:`<span class="thumb"></span>`}</td><td><b>${esc(ar?.nom||l.nom||"(article supprimé)")}</b><div class="hint mono">${esc(ar?.code||"")}</div></td><td>${esc(dm[l.depotId]?.nom||"")}</td><td class="r num"><b>${fmt(l.qte)}</b></td><td>${l.cree?`<span class="chip">créé</span>`:""}</td></tr>`}).join("")}</tbody></table></div>`:`<h2>Détail</h2><p class="hint">Sélectionnez une livraison.</p>`}</div></div>`;
   b.querySelectorAll("[data-rc]").forEach(el=>el.onclick=()=>{ui.rcSel=el.dataset.rc;saveUi();renderBody()});
+  {const an=$("#rc-an",b);if(an&&cur)an.onclick=()=>annulRec(cur)}
   b.querySelectorAll("[data-art]").forEach(el=>el.onclick=()=>{if(A()[el.dataset.art])articleDetail(el.dataset.art)});
 }
+
+/* ===== E. Suppressions / annulations (administrateur) : le stock est remis comme avant ===== */
+async function loadAllMoves(){try{const s=await window.FB.get(window.FB.ref(window.FB.rdb,"data/mouvements"));const v=s.val()||{};return Object.entries(v).filter(([,m])=>m).map(([id,m])=>({id,...m}))}catch(e){return S.mouvements.slice()}}
+async function myName(){try{const ps=user&&myId?await user.profiles([myId]):null;return(ps&&ps[myId]&&ps[myId].name)||""}catch(e){return""}}
+/* retire l'effet de mouvements sur le stock ; complète upd (multi-chemins) */
+function revertMovesInto(moves,upd,stk){for(const m of moves){for(const e of (m.effets||[])){const k=m.articleId+"__"+e.depotId;const nv=Math.round(((stk.has(k)?stk.get(k):qty(m.articleId,e.depotId))-(+e.delta||0))*1000)/1000;stk.set(k,nv);upd["data/stock/"+k]={articleId:m.articleId,depotId:e.depotId,qte:nv,maj:Date.now()}}upd["data/mouvements/"+m.id]=null}}
+/* supprime des articles créés par une importation s'ils n'ont servi nulle part ailleurs */
+function dropCreatedArticles(ids,keepMoves,allMoves,upd,stk){const used=new Set(allMoves.filter(m=>!keepMoves.has(m.id)).map(m=>m.articleId));for(const t of S.transferts)for(const l of (t.lignes||[]))if(l)used.add(l.articleId);
+  let del=0,kept=0;for(const id of new Set(ids)){if(!A()[id])continue;if(used.has(id)){kept++;continue}upd["data/articles/"+id]=null;for(const s of S.stock)if(s.articleId===id){upd["data/stock/"+s.articleId+"__"+s.depotId]=null;stk.set(s.articleId+"__"+s.depotId,0)}del++}return{del,kept}}
+async function logAnnul(upd,type,ref,details){upd["data/annulations/"+db.collection("annulations").doc().id]={ts:Date.now(),date:today(),par:myId||null,parNom:await myName(),type,ref,details:details||{}}}
+function annulDialog(title,html,okLabel,fn){
+  const m=openModal(`<header><h2>${title}</h2><button class="btn ghost sm" data-close>Fermer</button></header><div class="mb">${html}<p class="lock warn" style="margin:0">Cette opération est définitive. Le stock des dépôts concernés est remis comme avant l'opération, et l'annulation est enregistrée (date, heure, administrateur).</p><div class="err"></div></div>
+   <footer><button class="btn" data-close>Retour</button><button class="btn danger" id="an-go">${okLabel}</button></footer>`);
+  $("#an-go",m).onclick=()=>{const b=$("#an-go",m);confirmInline(b,"Confirmer ?",()=>guard(m,async()=>{b.textContent="Traitement…";const msg=await fn(b);closeModal();toast(msg||"Annulation effectuée")}))};
+}
+const mvLine=m=>{const a=A()[m.articleId],d=D();return`<tr><td class="mono">${fdate(m.date)}</td><td>${esc((MV[m.type]||{}).label||m.type)}</td><td>${esc(a?.nom||m.articleNom||"")}</td><td>${esc(d[m.depotId]?.nom||"")}${m.depotDestId?" → "+esc(d[m.depotDestId]?.nom||""):""}</td><td class="r num">${(m.effets||[]).map(e=>(e.delta>0?"+":"")+fmt(e.delta)).join(" / ")}</td></tr>`};
+const mvTable=ms=>`<div class="tablewrap" style="max-height:40vh;overflow:auto"><table><thead><tr><th>Date</th><th>Type</th><th>Article</th><th>Dépôt</th><th class="r">Effet annulé</th></tr></thead><tbody>${ms.slice(0,500).map(mvLine).join("")}</tbody></table></div>`;
+
+/* 1. un mouvement */
+function annulMove(id){if(!canAdmin)return;const m0=S.mouvements.find(m=>m.id===id);if(!m0)return;
+  if(m0.transfertId){const t=S.transferts.find(t=>t.id===m0.transfertId);if(t)return annulTransfer(t)}
+  if(m0.majId){const x=S.majstock.find(x=>x.id===m0.majId);if(x)return annulMaj(x)}
+  annulDialog("Supprimer le mouvement",`<p style="margin:0">Le mouvement ci-dessous sera supprimé et son effet retiré du stock.</p>${mvTable([m0])}`,"Supprimer le mouvement",async()=>{
+    const upd={},stk=new Map();revertMovesInto([m0],upd,stk);await logAnnul(upd,"mouvement",id,{type:m0.type,article:m0.articleNom||"",note:m0.note||"",qte:m0.qte});await batchWrite(upd);return"Mouvement supprimé, stock corrigé"})}
+/* 2. un transfert ou une casse / perte validé(e) */
+async function annulTransfer(t){if(!canAdmin)return;const all=await loadAllMoves();const ms=all.filter(m=>m.transfertId===t.id);const decl=isDecl(t);
+  annulDialog(decl?"Supprimer la déclaration":"Supprimer le transfert",`<p style="margin:0">${decl?"Déclaration":"Transfert"} N° <b>${esc(t.numero)}</b>${t.statut==="valide"?` : ${ms.length} mouvement${ms.length>1?"s":""} seront retirés et les quantités remises dans les dépôts d'origine.`:" (brouillon, aucun stock déplacé)."}</p>${ms.length?mvTable(ms):""}`,decl?"Supprimer la déclaration":"Supprimer le transfert",async()=>{
+    const upd={},stk=new Map();revertMovesInto(ms,upd,stk);upd["data/transferts/"+t.id]=null;await logAnnul(upd,decl?"declaration":"transfert",t.numero,{statut:t.statut,mouvements:ms.length,lignes:(t.lignes||[]).length});await batchWrite(upd);return`${decl?"Déclaration":"Transfert"} ${t.numero} supprimé${ms.length?", stock remis":""}`})}
+/* 3. une mise à jour journalière du stock */
+async function annulMaj(x){if(!canAdmin)return;const all=await loadAllMoves();const ms=all.filter(m=>m.majId===x.id);let det=majDet[x.id];if(!det){try{const s=await db.collection("majstock_det").doc(x.id).get();det=s.exists?s.data():{}}catch(e){det={}}}
+  const crees=(det.crees||[]).map(c=>c.a),rn=det.renames||[];
+  annulDialog("Annuler la mise à jour du stock",`<p style="margin:0">Mise à jour du <b>${fdate(x.date)}</b> à ${fhm(x.ts)} par ${esc(x.parNom||"—")} (${uS(x.fichier||"")}).</p><ul style="margin:6px 0"><li>${ms.length} écart${ms.length>1?"s":""} corrigé${ms.length>1?"s":""} seront remis à la quantité d'avant</li><li>${crees.length} article${crees.length>1?"s":""} créé${crees.length>1?"s":""} seront supprimés (sauf ceux déjà utilisés dans un mouvement ou un transfert)</li><li>${rn.length} nom${rn.length>1?"s":""} modifié${rn.length>1?"s":""} reprendront leur ancien nom</li></ul>${ms.length?mvTable(ms):""}`,"Annuler la mise à jour",async b=>{
+    const upd={},stk=new Map();revertMovesInto(ms,upd,stk);const keep=new Set(ms.map(m=>m.id));const r=dropCreatedArticles(crees,keep,all,upd,stk);
+    const art=A();let nr=0;for(const z of rn){const ar=art[z.a];if(ar&&ar.nom===z.en){upd["data/articles/"+z.a+"/nom"]=z.de;nr++}}
+    upd["data/majstock/"+x.id]=null;upd["data/majstock_det/"+x.id]=null;await logAnnul(upd,"maj_stock",x.id,{date:x.date,fichier:x.fichier||"",ecarts:ms.length,articlesSupprimes:r.del,articlesGardes:r.kept,noms:nr});
+    b.textContent="Enregistrement…";await batchWrite(upd,(i,n)=>{b.textContent=`Enregistrement… ${i} / ${n}`});delete majDet[x.id];
+    return`Mise à jour annulée : ${ms.length} écart${ms.length>1?"s":""} remis, ${r.del} article${r.del>1?"s":""} supprimé${r.del>1?"s":""}${r.kept?`, ${r.kept} gardé${r.kept>1?"s":""} (déjà utilisés)`:""}`})}
+/* 4. une livraison (réception fournisseur) */
+async function annulRec(r){if(!canAdmin)return;const all=await loadAllMoves();
+  let ms;if(r.src==="mvt")ms=all.filter(m=>m.type==="entree"&&m.note===r.note);
+  else{const ids=new Set(r.mvIds||[]);const note=`RECEPTION ${r.fournisseur}${r.facture?" - FACT "+r.facture:""}${r.bl?" - BL "+r.bl:""}`.toUpperCase();
+    ms=ids.size?all.filter(m=>ids.has(m.id)):all.filter(m=>m.type==="entree"&&(m.note===note||(r.facture&&m.numero===r.facture&&nrm(m.note||"").includes("RECEPTION"))))}
+  const crees=r.src==="mvt"?[]:(r.lignes||[]).filter(l=>l&&l.cree).map(l=>l.articleId);
+  annulDialog("Annuler la livraison",`<p style="margin:0"><b>${esc(r.fournisseur||"Fournisseur")}</b>${r.facture?" · facture "+esc(r.facture):""}${r.bl?" · BL "+esc(r.bl):""} : ${ms.length} entrée${ms.length>1?"s":""} en stock seront retirées${crees.length?` et ${crees.length} article${crees.length>1?"s":""} créé${crees.length>1?"s":""} à la réception seront supprimés (sauf s'ils ont déjà servi)`:""}.</p>${ms.length?mvTable(ms):`<p class="lock warn">Aucun mouvement retrouvé pour cette livraison.</p>`}`,"Annuler la livraison",async b=>{
+    const upd={},stk=new Map();revertMovesInto(ms,upd,stk);const rr=dropCreatedArticles(crees,new Set(ms.map(m=>m.id)),all,upd,stk);
+    if(r.src!=="mvt")upd["data/receptions/"+r.id]=null;await logAnnul(upd,"livraison",r.facture||r.bl||r.id,{fournisseur:r.fournisseur||"",entrees:ms.length,articlesSupprimes:rr.del});
+    b.textContent="Enregistrement…";await batchWrite(upd);return`Livraison annulée : ${ms.length} entrée${ms.length>1?"s":""} retirée${ms.length>1?"s":""}${rr.del?`, ${rr.del} article${rr.del>1?"s":""} supprimé${rr.del>1?"s":""}`:""}`})}
 
 /* ===== B. Réception fournisseur (facture / BL) depuis un PDF ou un Excel au format modèle ===== */
 const REC_COLS=["Stock","Groupe Articles","N° Article","Article","QTE","Unité Base","A CRÉER","PHOTO"];
@@ -2160,14 +2212,14 @@ function recImport(){
     const h=R.head,on=R.rows.filter(r=>r.on&&r.did&&r.q>0),upd={},now=Date.now();
     const newGrp=await ensureGroups([...new Set(on.filter(r=>r.mode==="new"&&!r.gid&&r.groupe).map(r=>r.groupe))],upd);
     if(Object.keys(upd).length)await batchWrite(upd);
-    const note=`RECEPTION ${h.fournisseur}${h.facture?" - FACT "+h.facture:""}${h.bl?" - BL "+h.bl:""}`.toUpperCase(),lines=[];let i=0;
+    const note=`RECEPTION ${h.fournisseur}${h.facture?" - FACT "+h.facture:""}${h.bl?" - BL "+h.bl:""}`.toUpperCase(),lines=[],mvIds=[];let i=0;
     for(const r of on){i++;b.textContent=`Import ${i} / ${on.length}…`;let aid=r.mode==="exist"&&r.hit?r.hit.aid:null;
       if(!aid){const id=db.collection("articles").doc().id;let photo=null;
         if(r.photo&&assets){try{const blob=await (await fetch(r.photo)).blob();const up=await assets.upload(blob,{type:"image/jpeg"});photo={asset:up.id}}catch(x){}}
         const art={code:(r.num||nextArtCode()).toUpperCase(),nom:r.nom,groupeId:r.gid||newGrp[nrm(r.groupe)]||"",uniteId:r.uid,hotel:D()[r.did]?.hotel||"LES2",seuil:0,reference:r.num?("REF "+r.num).toUpperCase():"",description:("FOURNISSEUR : "+h.fournisseur+(h.facture?" · FACTURE "+h.facture+(h.factureDate?" DU "+h.factureDate:""):"")+(h.bl?" · BL "+h.bl:"")).toUpperCase(),depotDefaut:r.did,photo,cree:now,maj:now,par:myId||null};
         await db.collection("articles").doc(id).set(art);S.articles.push({id,...art});aid=id}
-      await recordMove({type:"entree",articleId:aid,depotId:r.did,qte:r.q,date:h.date||today(),note,numero:h.facture||h.bl||""},{[aid]:{nom:r.nom}});lines.push({articleId:aid,depotId:r.did,qte:r.q,cree:r.mode==="new"})}
-    await window.FB.set(window.FB.ref(window.FB.rdb,"data/receptions/"+R.key),window.FB.clean({fournisseur:h.fournisseur,facture:h.facture,factureDate:h.factureDate,bl:h.bl,blDate:h.blDate,date:h.date,fichier:R.file,n:lines.length,lignes:lines,cree:now,par:myId||null}));
+      const mvid=await recordMove({type:"entree",articleId:aid,depotId:r.did,qte:r.q,date:h.date||today(),note,numero:h.facture||h.bl||""},{[aid]:{nom:r.nom}});if(mvid)mvIds.push(mvid);lines.push({articleId:aid,depotId:r.did,qte:r.q,cree:r.mode==="new"})}
+    await window.FB.set(window.FB.ref(window.FB.rdb,"data/receptions/"+R.key),window.FB.clean({fournisseur:h.fournisseur,facture:h.facture,factureDate:h.factureDate,bl:h.bl,blDate:h.blDate,date:h.date,fichier:R.file,n:lines.length,lignes:lines,mvIds,note,cree:now,par:myId||null}));
     closeModal();toast(`Réception importée : ${lines.length} ligne${lines.length>1?"s":""}, ${lines.filter(l=>l.cree).length} article${lines.filter(l=>l.cree).length>1?"s":""} créé${lines.filter(l=>l.cree).length>1?"s":""}`);
   }))};
 }
