@@ -49,12 +49,17 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;backgroun
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .seg button[data-h="NOVOTEL"][aria-pressed="true"]{color:var(--novo)}
 .seg button[data-h="IBIS"][aria-pressed="true"]{color:var(--ibs)}
-nav.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.tabs{display:flex;flex-wrap:wrap;gap:0 4px;overflow:visible}
 nav.tabs button{border:0;background:none;padding:10px 12px 11px;cursor:pointer;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
 nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 main{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:18px 60px;display:flex;flex-direction:column;gap:16px}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .toolbar .grow{flex:1 1 200px;min-width:0}
+.tb-line{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:1 1 100%;min-width:0}
+.tb-line .tb-search{flex:1 1 260px;min-width:0;font-size:15px;padding:11px 14px}
+.tb-line .tb-grp{flex:0 1 320px;min-width:160px}
+.check.pill{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px}
+.check.pill:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
 input[type=text],input[type=number],input[type=date],input[type=search],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
 textarea{resize:vertical;min-height:60px}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -729,13 +734,13 @@ function renderToolbar(){
   const tb=$("#toolbar");const w=canWrite;
   if(ui.tab==="dash"){tb.innerHTML=w?`<div class="grow"></div>${canAdmin?`<button class="btn" id="tb-art">+ Article</button><button class="btn" id="tb-mv">+ Mouvement</button>`:""}<button class="btn" id="tb-dc">+ Casse / perte</button><button class="btn primary" id="tb-tr">⇄ Transfert</button>`:"";}
   else if(ui.tab==="articles"){
-    tb.innerHTML=`<input type="search" id="tb-q" class="grow" placeholder="Rechercher un article, un code…" value="${esc(ui.q)}">
-      <details class="dd" id="dd-dep"><summary class="btn" aria-label="Filtrer par dépôt">Dépôts <span class="badge" id="dep-badge" hidden></span> <span aria-hidden="true">▾</span></summary><div class="dd-panel" id="dep-panel"></div></details>
-      <select id="tb-g" aria-label="Groupe">${filterGroupOptions(ui.groupe)}</select>
-      <label class="check"><input type="checkbox" id="tb-al" ${ui.alert?"checked":""}> Alertes seulement</label>
-      <label class="check"><input type="checkbox" id="tb-np" ${ui.noPhoto?"checked":""}> Sans photo <span class="badge" id="np-n" hidden></span></label>
-      ${ui.tab==="articles"?`<div class="seg" role="group" aria-label="Affichage"><button data-v="cards" aria-pressed="${ui.view==="cards"}">Fiches</button><button data-v="table" aria-pressed="${ui.view==="table"}">Liste</button></div>`:""}
-      ${canAdmin?`<button class="btn primary" id="tb-art">+ Article</button>`:""}
+    tb.innerHTML=`<div class="tb-line"><input type="search" id="tb-q" class="tb-search" placeholder="🔍 Rechercher par nom ou désignation de l'article, code…" value="${esc(ui.q)}">${canAdmin?`<button class="btn primary" id="tb-art">+ Article</button>`:""}</div>
+      <div class="tb-line"><details class="dd" id="dd-dep"><summary class="btn" aria-label="Filtrer par dépôt">Dépôts <span class="badge" id="dep-badge" hidden></span> <span aria-hidden="true">▾</span></summary><div class="dd-panel" id="dep-panel"></div></details>
+      <select id="tb-g" class="tb-grp" aria-label="Groupe">${filterGroupOptions(ui.groupe)}</select>
+      <label class="check pill"><input type="checkbox" id="tb-np" ${ui.noPhoto?"checked":""}> Sans photo <span class="badge" id="np-n" hidden></span></label>
+      <label class="check pill"><input type="checkbox" id="tb-al" ${ui.alert?"checked":""}> Alertes seulement</label>
+      <div class="grow"></div>
+      <div class="seg" role="group" aria-label="Affichage"><button data-v="cards" aria-pressed="${ui.view==="cards"}">Fiches</button><button data-v="table" aria-pressed="${ui.view==="table"}">Liste</button></div></div>
       <div class="depchips" id="depchips"></div>`;
   } else if(ui.tab==="mvts"){
     tb.innerHTML=`<input type="search" id="tb-mq" class="grow" placeholder="Rechercher article, dépôt, note, N° de transfert…" value="${esc(ui.mvQ)}">
@@ -831,7 +836,7 @@ function filteredArticles(){
     if(sd.length&&!(ui.depMode==="all"?sd.every(d=>inDep(a,d)):sd.some(d=>inDep(a,d))))return false;
     if(ui.groupe&&a.groupeId!==ui.groupe)return false;
     if(ui.noPhoto&&a.photo&&(a.photo.asset||a.photo.data))return false;
-    if(q&&!((a.nom||"")+" "+(a.code||"")+" "+(g[a.groupeId]?.nom||"")+" "+(a.description||"")).toLowerCase().includes(q))return false;
+    if(q&&!((a.nom||"")+" "+(a.code||"")+" "+(g[a.groupeId]?.nom||"")+" "+(a.description||"")+" "+(a.reference||"")+" "+(Array.isArray(a.nomsExcel)?a.nomsExcel.join(" "):"")).toLowerCase().includes(q))return false;
     if(ui.alert&&level(a,qtyCtx(a.id))==="ok")return false;
     return true;
   }).sort((a,b)=>(a.nom||"").localeCompare(b.nom||""));
