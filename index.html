@@ -721,7 +721,8 @@ function syncHeader(){
 function renderAll(){renderToolbar();renderBody()}
 
 /* ---------- toolbar per tab ---------- */
-function usedGroups(){const u=new Set(artVis().map(a=>a.groupeId));return S.groupes.filter(g=>u.has(g.id))}
+function depFilt(a){const sd0=selDeps();const sd=sd0.length===depotsVis().length?[]:sd0;return!sd.length||(ui.depMode==="all"?sd.every(d=>inDep(a,d)):sd.some(d=>inDep(a,d)))}
+function usedGroups(){const u=new Set(artVis().filter(depFilt).map(a=>a.groupeId));return S.groupes.filter(g=>u.has(g.id))}
 function filterGroupOptions(sel){return`<option value="">Tous les groupes</option>`+usedGroups().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<option value="${g.id}" ${g.id===sel?"selected":""}>${esc(g.nom)}</option>`).join("")}
 function groupOptions(sel,allLabel){return(allLabel!==undefined?`<option value="">${allLabel}</option>`:"")+S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<option value="${g.id}" ${g.id===sel?"selected":""}>${esc(g.nom)}</option>`).join("")}
 function renderToolbar(){
@@ -729,9 +730,10 @@ function renderToolbar(){
   if(ui.tab==="dash"){tb.innerHTML=w?`<div class="grow"></div>${canAdmin?`<button class="btn" id="tb-art">+ Article</button><button class="btn" id="tb-mv">+ Mouvement</button>`:""}<button class="btn" id="tb-dc">+ Casse / perte</button><button class="btn primary" id="tb-tr">⇄ Transfert</button>`:"";}
   else if(ui.tab==="articles"){
     tb.innerHTML=`<input type="search" id="tb-q" class="grow" placeholder="Rechercher un article, un code…" value="${esc(ui.q)}">
-      <select id="tb-g" aria-label="Groupe">${filterGroupOptions(ui.groupe)}</select>
       <details class="dd" id="dd-dep"><summary class="btn" aria-label="Filtrer par dépôt">Dépôts <span class="badge" id="dep-badge" hidden></span> <span aria-hidden="true">▾</span></summary><div class="dd-panel" id="dep-panel"></div></details>
+      <select id="tb-g" aria-label="Groupe">${filterGroupOptions(ui.groupe)}</select>
       <label class="check"><input type="checkbox" id="tb-al" ${ui.alert?"checked":""}> Alertes seulement</label>
+      <label class="check"><input type="checkbox" id="tb-np" ${ui.noPhoto?"checked":""}> Sans photo <span class="badge" id="np-n" hidden></span></label>
       ${ui.tab==="articles"?`<div class="seg" role="group" aria-label="Affichage"><button data-v="cards" aria-pressed="${ui.view==="cards"}">Fiches</button><button data-v="table" aria-pressed="${ui.view==="table"}">Liste</button></div>`:""}
       ${canAdmin?`<button class="btn primary" id="tb-art">+ Article</button>`:""}
       <div class="depchips" id="depchips"></div>`;
@@ -761,6 +763,7 @@ function renderToolbar(){
   on("tb-q","input",e=>{ui.q=e.target.value;artLimit=120;saveUi();renderBody()});
   on("tb-g","change",e=>{ui.groupe=e.target.value;saveUi();renderBody()});
   on("tb-al","change",e=>{ui.alert=e.target.checked;saveUi();renderBody()});
+  on("tb-np","change",e=>{ui.noPhoto=e.target.checked;artLimit=120;saveUi();renderBody()});
   on("tb-mq","input",e=>{ui.mvQ=e.target.value;renderBody()});
   on("tb-tq","input",e=>{ui.trQ=e.target.value;renderBody()});
   on("tb-dq","input",e=>{ui.dcQ=e.target.value;renderBody()});
@@ -814,6 +817,7 @@ function renderBody(){
   const gs=$("#tb-g");if(gs){const h=filterGroupOptions(ui.groupe);if(gs.dataset.h!==h){gs.innerHTML=h;gs.dataset.h=h}}
   if(loaded.articles&&ui.groupe&&!usedGroups().some(g=>g.id===ui.groupe)){ui.groupe="";if(gs)gs.value=""}
   updDepUI();
+  {const nn=$("#np-n");if(nn){const n=artVis().filter(a=>depFilt(a)&&(!ui.groupe||a.groupeId===ui.groupe)&&!(a.photo&&(a.photo.asset||a.photo.data))).length;nn.hidden=!n;nn.textContent=n;nn.title=n+" article(s) sans photo"}}
   for(const[idn,dc]of[["#trs-n",false],["#dcl-n",true]]){const tn=$(idn);if(tn){const n=draftCount(dc);tn.hidden=!n;tn.textContent=n;tn.title=n+" brouillon(s) à valider"}}
   {const ivn=$("#inv-n");if(ivn){const n=invCount();ivn.hidden=!n;ivn.textContent=n;ivn.title=n+" inventaire(s) en cours"}}
   {const mn=$("#maj-n");if(mn){const off=!loaded.majstock||!!majToday();mn.hidden=off;mn.title=off?"":"Stock non mis à jour aujourd'hui"}}
@@ -824,8 +828,9 @@ function renderBody(){
 function filteredArticles(){
   const q=ui.q.trim().toLowerCase();const g=G();const sd0=selDeps();const sd=sd0.length===depotsVis().length?[]:sd0;
   return artVis().filter(a=>{
-    if(ui.groupe&&a.groupeId!==ui.groupe)return false;
     if(sd.length&&!(ui.depMode==="all"?sd.every(d=>inDep(a,d)):sd.some(d=>inDep(a,d))))return false;
+    if(ui.groupe&&a.groupeId!==ui.groupe)return false;
+    if(ui.noPhoto&&a.photo&&(a.photo.asset||a.photo.data))return false;
     if(q&&!((a.nom||"")+" "+(a.code||"")+" "+(g[a.groupeId]?.nom||"")+" "+(a.description||"")).toLowerCase().includes(q))return false;
     if(ui.alert&&level(a,qtyCtx(a.id))==="ok")return false;
     return true;
