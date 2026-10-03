@@ -646,6 +646,7 @@ let ui={hotel:"ALL",tab:"dash",q:"",groupe:"",alert:false,view:"cards",mvType:""
 try{Object.assign(ui,JSON.parse(localStorage.getItem("mh-ui")||"{}"))}catch(e){}
 if(ui.hotel==="IBS")ui.hotel="IBIS";
 if(ui.tab==="stock"){ui.tab="articles";ui.view="table"}
+if(ui.noPhoto&&!ui.photoF)ui.photoF="sans";delete ui.noPhoto;
 if(!Array.isArray(ui.deps))ui.deps=[];if(ui.depMode!=="all")ui.depMode="any";
 function saveUi(){try{localStorage.setItem("mh-ui",JSON.stringify(ui))}catch(e){}}
 
@@ -734,10 +735,10 @@ function renderToolbar(){
   const tb=$("#toolbar");const w=canWrite;
   if(ui.tab==="dash"){tb.innerHTML=w?`<div class="grow"></div>${canAdmin?`<button class="btn" id="tb-art">+ Article</button><button class="btn" id="tb-mv">+ Mouvement</button>`:""}<button class="btn" id="tb-dc">+ Casse / perte</button><button class="btn primary" id="tb-tr">⇄ Transfert</button>`:"";}
   else if(ui.tab==="articles"){
-    tb.innerHTML=`<div class="tb-line"><input type="search" id="tb-q" class="tb-search" placeholder="🔍 Rechercher par nom ou désignation de l'article, code…" value="${esc(ui.q)}">${canAdmin?`<button class="btn primary" id="tb-art">+ Article</button>`:""}</div>
+    tb.innerHTML=`<div class="tb-line"><input type="search" id="tb-q" class="tb-search" placeholder="🔍 Rechercher par nom ou désignation de l'article, code…" value="${esc(ui.q)}">${canAdmin?`<button class="btn" id="tb-dup">🔍 Doublons</button><button class="btn primary" id="tb-art">+ Article</button>`:""}</div>
       <div class="tb-line"><details class="dd" id="dd-dep"><summary class="btn" aria-label="Filtrer par dépôt">Dépôts <span class="badge" id="dep-badge" hidden></span> <span aria-hidden="true">▾</span></summary><div class="dd-panel" id="dep-panel"></div></details>
       <select id="tb-g" class="tb-grp" aria-label="Groupe">${filterGroupOptions(ui.groupe)}</select>
-      <label class="check pill"><input type="checkbox" id="tb-np" ${ui.noPhoto?"checked":""}> Sans photo <span class="badge" id="np-n" hidden></span></label>
+      <div class="seg" role="group" aria-label="Photo">${[["","Tous"],["avec","Avec photo"],["sans","Sans photo"]].map(([k,l])=>`<button data-pf="${k}" aria-pressed="${(ui.photoF||"")===k}">${l} <span class="badge" id="pf-n-${k||"all"}"></span></button>`).join("")}</div>
       <label class="check pill"><input type="checkbox" id="tb-al" ${ui.alert?"checked":""}> Alertes seulement</label>
       <div class="grow"></div>
       <div class="seg" role="group" aria-label="Affichage"><button data-v="cards" aria-pressed="${ui.view==="cards"}">Fiches</button><button data-v="table" aria-pressed="${ui.view==="table"}">Liste</button></div></div>
@@ -768,7 +769,8 @@ function renderToolbar(){
   on("tb-q","input",e=>{ui.q=e.target.value;artLimit=120;saveUi();renderBody()});
   on("tb-g","change",e=>{ui.groupe=e.target.value;saveUi();renderBody()});
   on("tb-al","change",e=>{ui.alert=e.target.checked;saveUi();renderBody()});
-  on("tb-np","change",e=>{ui.noPhoto=e.target.checked;artLimit=120;saveUi();renderBody()});
+  on("tb-dup","click",()=>dupTool());
+  tb.querySelectorAll("[data-pf]").forEach(b=>b.onclick=()=>{ui.photoF=b.dataset.pf;artLimit=120;saveUi();renderToolbar();renderBody()});
   on("tb-mq","input",e=>{ui.mvQ=e.target.value;renderBody()});
   on("tb-tq","input",e=>{ui.trQ=e.target.value;renderBody()});
   on("tb-dq","input",e=>{ui.dcQ=e.target.value;renderBody()});
@@ -822,7 +824,7 @@ function renderBody(){
   const gs=$("#tb-g");if(gs){const h=filterGroupOptions(ui.groupe);if(gs.dataset.h!==h){gs.innerHTML=h;gs.dataset.h=h}}
   if(loaded.articles&&ui.groupe&&!usedGroups().some(g=>g.id===ui.groupe)){ui.groupe="";if(gs)gs.value=""}
   updDepUI();
-  {const nn=$("#np-n");if(nn){const n=artVis().filter(a=>depFilt(a)&&(!ui.groupe||a.groupeId===ui.groupe)&&!(a.photo&&(a.photo.asset||a.photo.data))).length;nn.hidden=!n;nn.textContent=n;nn.title=n+" article(s) sans photo"}}
+  if($("#pf-n-all")){const base=artVis().filter(a=>depFilt(a)&&(!ui.groupe||a.groupeId===ui.groupe));const nw=base.filter(a=>a.photo&&(a.photo.asset||a.photo.data)).length;$("#pf-n-all").textContent=base.length;$("#pf-n-avec").textContent=nw;$("#pf-n-sans").textContent=base.length-nw}
   for(const[idn,dc]of[["#trs-n",false],["#dcl-n",true]]){const tn=$(idn);if(tn){const n=draftCount(dc);tn.hidden=!n;tn.textContent=n;tn.title=n+" brouillon(s) à valider"}}
   {const ivn=$("#inv-n");if(ivn){const n=invCount();ivn.hidden=!n;ivn.textContent=n;ivn.title=n+" inventaire(s) en cours"}}
   {const mn=$("#maj-n");if(mn){const off=!loaded.majstock||!!majToday();mn.hidden=off;mn.title=off?"":"Stock non mis à jour aujourd'hui"}}
@@ -835,7 +837,7 @@ function filteredArticles(){
   return artVis().filter(a=>{
     if(sd.length&&!(ui.depMode==="all"?sd.every(d=>inDep(a,d)):sd.some(d=>inDep(a,d))))return false;
     if(ui.groupe&&a.groupeId!==ui.groupe)return false;
-    if(ui.noPhoto&&a.photo&&(a.photo.asset||a.photo.data))return false;
+    if(ui.photoF){const hp=!!(a.photo&&(a.photo.asset||a.photo.data));if(ui.photoF==="sans"?hp:!hp)return false}
     if(q&&!((a.nom||"")+" "+(a.code||"")+" "+(g[a.groupeId]?.nom||"")+" "+(a.description||"")+" "+(a.reference||"")+" "+(Array.isArray(a.nomsExcel)?a.nomsExcel.join(" "):"")).toLowerCase().includes(q))return false;
     if(ui.alert&&level(a,qtyCtx(a.id))==="ok")return false;
     return true;
@@ -1063,13 +1065,13 @@ function renderParams(b){
   const w=canAdmin;const depSort=(a,b)=>((a.hotel==="LES2"?"0":a.hotel)+a.nom).localeCompare((b.hotel==="LES2"?"0":b.hotel)+b.nom);const usedG=new Set(S.articles.map(a=>a.groupeId)),usedU=new Set(S.articles.map(a=>a.uniteId));
   const deps=S.depots.slice().sort(depSort).filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2");
   const isAdm=window.FB&&window.FB.role()==="admin";
-  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-rec">📥 Importer une réception</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
+  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button><button class="btn" id="adm-rec">📥 Importer une réception</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
    <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2><div class="list">${deps.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
    <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
   </div>`;
   b.querySelectorAll("[data-new]").forEach(x=>x.onclick=()=>refForm(x.dataset.new));
-  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const rc=$("#adm-rec",b);if(rc)rc.onclick=()=>recImport();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
+  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const dpb=$("#adm-dup",b);if(dpb)dpb.onclick=()=>dupTool();const rc=$("#adm-rec",b);if(rc)rc.onclick=()=>recImport();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
   b.querySelectorAll("[data-ed]").forEach(x=>x.onclick=()=>{const[c,id]=x.dataset.ed.split(":");refForm(c,S[c].find(r=>r.id===id))});
 }
 
@@ -1864,6 +1866,110 @@ async function majShow(cur,box){
     const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(data.length?data:[{"Dépôt":"","Article":"Aucun écart","Avant":"","Après":"","Écart":""}]);ws["!cols"]=[{wch:34},{wch:60},{wch:10},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,"Écarts");
     const info=XLSX.utils.aoa_to_sheet([["Mise à jour du",fdate(cur.date)+" "+fhm(cur.ts)],["Par",cur.parNom||""],["Fichier",cur.fichier||""],["Export",cur.exportDate||""],["Écarts",cur.nEcarts||0],["Articles créés",cur.nCrees||0]]);XLSX.utils.book_append_sheet(wb,info,"Infos");
     XLSX.writeFile(wb,`ECARTS STOCK ${cur.date}.xlsx`)}catch(x){toast((x&&x.message)||"Export impossible")}};
+}
+
+/* ===== D. Doublons d'articles (petites erreurs de saisie) : détection + fusion ===== */
+const DUP_STOP=new Set(["AVEC","POUR","REF","DES","LES","UNE","AUX","SUR","ET","DE","DU","LA","LE","EN","A","AU","L","D"]);
+const DUP_SIZE=new Set(["PM","MM","GM","TPM","TGM","XS","XL","XXL"]);
+const DUP_SIGN=new Set(["SOUS","PERFORATED","PERFORE","PERFOREE","PERFORES","MINI","DOUBLE","DEMI","COUVERCLE","LID","SANS","WITHOUT","MOITIE"]);
+function dupNorm(s){s=String(s||"").replace(/Œ/g,"OE").replace(/œ/g,"oe").normalize("NFKD").replace(/[̀-ͯ]/g,"").toUpperCase();
+  s=s.replace(/[^A-Z0-9.,*]+/g," ").replace(/\*/g," X ").replace(/(\d),(?=\d)/g,"$1.").replace(/,/g," ").replace(/(\d)X(?=\d)/g,"$1 X ");
+  for(let i=0;i<3;i++)s=s.replace(/(\d) (\d)/g,"$1$2");return s.replace(/\s+/g," ").trim()}
+function dupIsCode(t){const dg=t.replace(/\D/g,"");if(/^[\d.]+$/.test(t))return dg.length>=5||(t.match(/\./g)||[]).length>=2;
+  return /^[A-Z]{1,5}[\d.]+[A-Z0-9]*$/.test(t)&&dg.length>=3&&!/^\d+(CM|MM|CL|ML|L|LT|LTR|KG|G|GR|W|V|M|PCS|PC|P)$/.test(t)}
+function dupFeat(a){const n=dupNorm(a.nom),codes=new Set(),meas=[],words=new Set();
+  for(const t of n.split(" ")){if(!t)continue;if(dupIsCode(t)){codes.add("T"+t.replace(/\./g,""));const dg=t.replace(/\D/g,"");if(dg.length>=5)codes.add("D"+dg)}
+    else if(/\d/.test(t)){for(const x of t.match(/\d+(?:\.\d+)?/g)||[])meas.push(String(parseFloat(x)));const w=t.replace(/[\d.]+/g,"");if(DUP_SIZE.has(w))words.add(w)}
+    else if((t.length>=3&&!DUP_STOP.has(t))||DUP_SIZE.has(t))words.add(t)}
+  const c=String(a.code||"").toUpperCase();if(!/^(GEN|ART)-/.test(c)){const dg=c.replace(/\D/g,"");if(dg.length>=5)codes.add("D"+dg)}
+  meas.sort();return{id:a.id,c:n.replace(/[^A-Z0-9]/g,""),codes,meas:meas.join(","),words}}
+function dupNear(x,y){if(x===y)return true;if(DUP_SIZE.has(x)||DUP_SIZE.has(y))return false;if(x.length>=4&&y.length>=4&&(x.startsWith(y)||y.startsWith(x)))return true;
+  if(Math.abs(x.length-y.length)>2||Math.min(x.length,y.length)<4)return false;return lcsLen(x,y)>=Math.max(x.length,y.length)-1}
+function dupCodeRel(ca,cb){for(const x of ca)for(const y of cb){if(x[0]!==y[0])continue;const a=x.slice(1),b=y.slice(1);if(a===b||(Math.min(a.length,b.length)>=4&&(a.startsWith(b)||b.startsWith(a))))return true}return false}
+function dupFind(){
+  const F=S.articles.map(dupFeat),idx=new Map();
+  F.forEach((f,i)=>{for(const w of f.words){let l=idx.get(w);if(!l)idx.set(w,l=[]);l.push(i)}});
+  const pairs=[];
+  for(let i=0;i<F.length;i++){const a=F[i],cand=new Set();
+    for(const w of a.words){const l=idx.get(w);if(l.length<1500)for(const j of l)if(j>i)cand.add(j)}
+    for(const j of cand){const b=F[j];if(a.meas!==b.meas)continue;
+      const ua=[...a.words].filter(x=>!b.words.has(x)),ub=[...b.words].filter(x=>!a.words.has(x));
+      const ua2=ua.filter(x=>!ub.some(y=>dupNear(x,y))),ub2=ub.filter(y=>!ua.some(x=>dupNear(x,y)));
+      if(ua2.length&&ub2.length)continue;if([...ua2,...ub2].some(w=>DUP_SIGN.has(w)||DUP_SIZE.has(w)))continue;
+      let inter=0;for(const w of a.words)if(b.words.has(w))inter++;if(inter<Math.max(1,Math.min(a.words.size,b.words.size)-1))continue;
+      const rel=dupCodeRel(a.codes,b.codes);if(a.codes.size&&b.codes.size&&!rel)continue;
+      const r=a.c===b.c?1:200*lcsLen(a.c,b.c)/(a.c.length+b.c.length)/100;const extra=ua2.length+ub2.length;
+      if(rel&&r>=0.6)pairs.push({a:a.id,b:b.id,sur:true,r});else if(r>=0.9&&extra<=1)pairs.push({a:a.id,b:b.id,sur:false,r})}}
+  // groupes : liens « sûrs » d'abord, puis paires à vérifier
+  const par=new Map(),fd=x=>{while(par.has(x)&&par.get(x)!==x)x=par.get(x);return x};
+  for(const p of pairs.filter(p=>p.sur)){const x=fd(p.a),y=fd(p.b);if(x!==y)par.set(y,x);if(!par.has(x))par.set(x,x)}
+  const cl=new Map();for(const p of pairs.filter(p=>p.sur)){const k=fd(p.a);if(!cl.has(k))cl.set(k,{ids:new Set(),sur:true,r:1});const c=cl.get(k);c.ids.add(p.a);c.ids.add(p.b);c.r=Math.min(c.r,p.r)}
+  const out=[...cl.values()];
+  for(const p of pairs.filter(p=>!p.sur)){if(par.has(p.a)&&par.has(p.b)&&fd(p.a)===fd(p.b))continue;out.push({ids:new Set([p.a,p.b]),sur:false,r:p.r})}
+  const art=A(),tot=id=>{let t=0;for(const s of S.stock)if(s.articleId===id)t+=+s.qte||0;return t};
+  const nmov=new Map();for(const m of S.mouvements)nmov.set(m.articleId,(nmov.get(m.articleId)||0)+1);
+  return out.map((c,i)=>{const arts=[...c.ids].map(id=>art[id]).filter(Boolean).map(a=>({a,tot:tot(a.id),ph:!!(a.photo&&(a.photo.asset||a.photo.data)),xl:Array.isArray(a.nomsExcel)&&a.nomsExcel.length,imp:/IMPORT STOCK/.test(a.description||""),nm:nmov.get(a.id)||0}));
+    const keep=arts.slice().sort((x,y)=>(y.ph-x.ph)||(x.imp-y.imp)||(y.nm-x.nm)||((x.a.cree||0)-(y.a.cree||0)))[0];
+    const named=arts.slice().sort((x,y)=>((y.xl?1:0)-(x.xl?1:0))||((y.tot?1:0)-(x.tot?1:0))||(y.tot-x.tot))[0];
+    return{k:i,arts,sur:c.sur,r:c.r,keep:keep?.a.id,nom:(named||keep)?.a.nom||"",on:c.sur}}).filter(c=>c.arts.length>1).sort((x,y)=>(y.sur-x.sur)||x.nom.localeCompare(y.nom))}
+
+function dupTool(){
+  if(!canAdmin){toast("Réservé à l'administrateur.");return}
+  const m=openModal(`<header><h2>Doublons d'articles</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p class="hint" style="margin:0;text-transform:none">Recherche des articles saisis deux fois avec une petite différence (espace, « * » au lieu de « x », référence tronquée, faute de frappe…). Les mesures (cm, litres, tailles PM/GM…) doivent être identiques et les références compatibles. Pour chaque groupe : choisissez l'article à <b>garder</b> (par défaut celui qui a une photo) et le <b>nom final</b> (par défaut celui du fichier Excel). La fusion additionne les stocks dépôt par dépôt, rattache l'historique (mouvements, transferts, inventaires) à l'article gardé, mémorise tous les noms pour les prochains imports Excel, puis supprime le doublon.</p>
+    <div id="dp-res"><p class="hint">Analyse en cours…</p></div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="dp-go" disabled>Fusionner</button></footer>`,{wide:"xl"});
+  let C=[],tab="sur",q="";
+  setTimeout(()=>{C=dupFind();draw()},30);
+  function draw(){
+    const dm=D(),g=G(),u=U(),box=$("#dp-res",m),ns=C.filter(c=>c.sur).length,np=C.length-ns;
+    const list=C.filter(c=>(tab==="sur")===c.sur&&(!q||c.arts.some(x=>(x.a.nom+" "+(x.a.code||"")).toLowerCase().includes(q.toLowerCase()))));
+    box.innerHTML=`<div class="trx-filters"><div class="seg" role="group"><button data-tb="sur" aria-pressed="${tab==="sur"}">Doublons sûrs (${ns})</button><button data-tb="prob" aria-pressed="${tab==="prob"}">À vérifier (${np})</button></div><input type="search" id="dp-q" placeholder="Filtrer…" value="${esc(q)}" style="max-width:260px"><button class="btn sm" id="dp-all">Tout cocher</button><button class="btn sm ghost" id="dp-none">Tout décocher</button><span class="hint">${tab==="sur"?"Même référence (ou référence tronquée) et mêmes mesures : cochés par défaut.":"Noms très proches sans référence commune : vérifiez avec les photos avant de cocher."}</span></div>
+     <div style="max-height:58vh;overflow:auto;display:flex;flex-direction:column;gap:10px;margin-top:8px">${list.length?list.slice(0,600).map(c=>`<div class="panel" style="padding:10px 12px;${c.on?"border-color:var(--accent)":""}">
+       <label class="check" style="font-weight:700"><input type="checkbox" data-on="${c.k}" ${c.on?"checked":""}> Fusionner ces ${c.arts.length} articles <span class="hint" style="font-weight:400">· ressemblance ${Math.round(c.r*100)} %</span></label>
+       <div class="tablewrap" style="margin-top:6px"><table><thead><tr><th>Garder</th><th></th><th>Article</th><th>Groupe</th><th class="r">Stock</th><th>Dépôts</th></tr></thead><tbody>${c.arts.map(x=>{const s=photoSrc(x.a);const deps=S.stock.filter(st=>st.articleId===x.a.id&&+st.qte).map(st=>`${esc(dm[st.depotId]?.nom||"")} : <b>${fmt(st.qte)}</b>`).join(" · ");return`<tr><td><input type="radio" name="kp${c.k}" data-kp="${c.k}" value="${x.a.id}" ${c.keep===x.a.id?"checked":""}></td><td>${s?`<img class="thumb" src="${esc(s)}" alt="" loading="lazy">`:`<span class="thumb"></span>`}</td><td><b>${esc(x.a.nom)}</b><div class="hint mono">${esc(x.a.code||"")}${x.imp?" · créé par import":""}${x.nm?` · ${x.nm} mvt`:""}</div></td><td class="hint">${esc(g[x.a.groupeId]?.nom||"")}</td><td class="r num"><b>${fmt(x.tot)}</b> <span class="hint">${esc(u[x.a.uniteId]?.abrev||"")}</span></td><td class="hint">${deps||"—"}</td></tr>`}).join("")}</tbody></table></div>
+       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><span class="hint">Nom final :</span><select data-nm="${c.k}" style="max-width:560px">${[...new Set(c.arts.map(x=>x.a.nom))].map(n=>`<option ${n===c.nom?"selected":""}>${esc(n)}</option>`).join("")}</select></div></div>`).join(""):`<p class="lock">✓ Aucun doublon dans cette catégorie.</p>`}</div>`;
+    box.querySelectorAll("[data-tb]").forEach(b=>b.onclick=()=>{tab=b.dataset.tb;draw()});
+    $("#dp-q",box).oninput=e=>{q=e.target.value;clearTimeout(draw._t);draw._t=setTimeout(()=>{draw();const i=$("#dp-q",box);i.focus();i.setSelectionRange(q.length,q.length)},250)};
+    $("#dp-all",box).onclick=()=>{list.forEach(c=>c.on=true);draw()};$("#dp-none",box).onclick=()=>{list.forEach(c=>c.on=false);draw()};
+    box.querySelectorAll("[data-on]").forEach(x=>x.onchange=()=>{C.find(c=>c.k==x.dataset.on).on=x.checked;upd()});
+    box.querySelectorAll("[data-kp]").forEach(x=>x.onchange=()=>{C.find(c=>c.k==x.dataset.kp).keep=x.value});
+    box.querySelectorAll("[data-nm]").forEach(x=>x.onchange=()=>{C.find(c=>c.k==x.dataset.nm).nom=x.value});
+    upd();
+  }
+  function upd(){const n=C.filter(c=>c.on).length;const b=$("#dp-go",m);b.disabled=!n;b.textContent=n?`Fusionner ${n} groupe${n>1?"s":""} de doublons`:"Fusionner"}
+  $("#dp-go",m).onclick=()=>{const b=$("#dp-go",m);confirmInline(b,"Confirmer la fusion ?",()=>guard(m,async()=>{
+    b.textContent="Lecture de l'historique…";
+    let allMv={};try{const s=await window.FB.get(window.FB.ref(window.FB.rdb,"data/mouvements"));allMv=s.val()||{}}catch(e){allMv={};for(const mv of S.mouvements)allMv[mv.id]=mv}
+    const upd={},now=Date.now(),dt=today(),[yy,mo,dd]=dt.split("-").map(Number),dateTs=new Date(yy,mo-1,dd,12).getTime(),art=A();
+    let parNom="";try{const ps=user&&myId?await user.profiles([myId]):null;parNom=(ps&&ps[myId]&&ps[myId].name)||""}catch(e){}
+    const redirect=new Map(),R=id=>{while(redirect.has(id))id=redirect.get(id);return id};
+    const stk=new Map();for(const s of S.stock)stk.set(s.articleId+"__"+s.depotId,+s.qte||0);
+    const artState=new Map();const AS=id=>{if(!artState.has(id)&&art[id])artState.set(id,{...art[id]});return artState.get(id)};
+    let nG=0,nD=0;const logs=[];
+    for(const c of C.filter(c=>c.on).sort((x,y)=>y.sur-x.sur)){
+      const keepId=R(c.keep);const ids=[...new Set(c.arts.map(x=>R(x.a.id)))].filter(id=>id!==keepId&&AS(id));const K=AS(keepId);if(!K||!ids.length)continue;
+      const names=new Set([...(K.nomsExcel||[]),K.nom]);const dupsLog=[];
+      for(const did0 of ids){const Dp=AS(did0);for(const n of [...(Dp.nomsExcel||[]),Dp.nom])names.add(n);
+        if(!(K.photo&&(K.photo.asset||K.photo.data))&&Dp.photo)K.photo=Dp.photo;
+        if(/^(GEN|ART)-/.test(String(K.code||""))&&Dp.code&&!/^(GEN|ART)-/.test(String(Dp.code)))K.code=Dp.code;
+        if(!K.groupeId&&Dp.groupeId)K.groupeId=Dp.groupeId;if((+Dp.seuil||0)>(+K.seuil||0))K.seuil=+Dp.seuil;if(!K.prix&&Dp.prix)K.prix=Dp.prix;if(!K.reference&&Dp.reference)K.reference=Dp.reference;
+        const moved={};
+        for(const[k,q]of[...stk.entries()]){const[aid,dep]=k.split("__");if(aid!==did0)continue;stk.delete(k);upd["data/stock/"+k]=null;if(!q)continue;moved[dep]=q;
+          const kk=keepId+"__"+dep,nv=Math.round(((stk.get(kk)||0)+q)*1000)/1000;stk.set(kk,nv);upd["data/stock/"+kk]={articleId:keepId,depotId:dep,qte:nv,maj:now,source:"FUSION "+dt};
+          upd["data/mouvements/"+db.collection("mouvements").doc().id]={type:"inventaire",articleId:keepId,depotId:dep,qte:nv,date:dt,note:"FUSION DOUBLON : "+Dp.nom,effets:[{depotId:dep,delta:q}],articleNom:c.nom,dateTs,ts:now,par:myId||null}}
+        for(const[mid,mv]of Object.entries(allMv))if(mv&&mv.articleId===did0){upd["data/mouvements/"+mid+"/articleId"]=keepId;mv.articleId=keepId}
+        for(const t of S.transferts){(t.lignes||[]).forEach((l,i)=>{if(l&&l.articleId===did0)upd["data/transferts/"+t.id+"/lignes/"+i+"/articleId"]=keepId})}
+        for(const iv of S.inventaires){const L=iv.lignes||{};if(L[did0]){if(!L[keepId])upd["data/inventaires/"+iv.id+"/lignes/"+keepId]=L[did0];upd["data/inventaires/"+iv.id+"/lignes/"+did0]=null}}
+        upd["data/articles/"+did0]=null;redirect.set(did0,keepId);artState.delete(did0);nD++;
+        dupsLog.push({id:did0,nom:Dp.nom,code:Dp.code||"",stock:moved})}
+      K.nom=c.nom;K.nomsExcel=[...names].filter(Boolean);K.maj=now;
+      const {id:_x,...rest}=K;upd["data/articles/"+keepId]=rest;nG++;
+      logs.push({garde:keepId,nom:c.nom,code:K.code||"",doublons:dupsLog})}
+    const lid=db.collection("fusions").doc().id;upd["data/fusions/"+lid]={ts:now,date:dt,par:myId||null,parNom,nGroupes:nG,nSupprimes:nD,details:logs};
+    b.textContent="Enregistrement…";await batchWrite(upd,(i,n)=>{b.textContent=`Enregistrement… ${i} / ${n}`});
+    closeModal();toast(`Fusion terminée : ${nG} groupe${nG>1?"s":""}, ${nD} doublon${nD>1?"s":""} supprimé${nD>1?"s":""}`);
+  }))};
 }
 
 /* ===== B. Réception fournisseur (facture / BL) depuis un PDF ou un Excel au format modèle ===== */
