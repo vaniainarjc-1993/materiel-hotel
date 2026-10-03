@@ -1635,18 +1635,23 @@ function invCreate(){
   const sum=()=>{$("#iv-nd",m).textContent=selD.size;$("#iv-ng",m).textContent=selG.size;const p=plan(),n=p.reduce((s,x)=>s+x.arts.length,0);
     $("#iv-sum",m).textContent=!selD.size||!selG.size?"Choisissez au moins un dépôt et un groupe d'articles.":p.length?`→ ${p.length} fiche${p.length>1?"s":""} d'inventaire · ${n} ligne${n>1?"s":""} à compter`:"Aucun article de ces groupes dans ces dépôts (cochez « Inclure aussi les articles sans stock » si besoin).";
     $("#iv-go",m).disabled=!p.length;$("#iv-go",m).textContent=p.length>1?`Générer les ${p.length} fiches`:"Générer la fiche"};
-  const cntG=gid=>{let n=0;for(const a of S.articles)if(a.groupeId===gid&&[...selD].some(d=>withZero?true:inDep(a,d)))n++;return n};
+  const cntG=gid=>{const ids=new Set();for(const d of selD)for(const a of invArticles(d,[gid],withZero))ids.add(a.id);return ids.size};
+  const availG=()=>selD.size?grs.filter(x=>cntG(x.id)>0):[];
   const drawD=()=>{const f=$("#iv-qd",m).value.trim().toLowerCase();$("#iv-ld",m).innerHTML=[["LES2","Commun"],["NOVOTEL","NOVOTEL"],["IBIS","IBIS"]].map(([h,l])=>{const ds=deps.filter(d=>d.hotel===h&&(!f||d.nom.toLowerCase().includes(f)));return ds.length?`<div class="dd-h" style="color:var(--${h==="IBIS"?"ibs":h==="LES2"?"accent":"novo"})">${l}</div>`+ds.map(d=>{let n=0;for(const a of S.articles)if(inDep(a,d.id))n++;return`<label class="dep-opt"><input type="checkbox" value="${d.id}" ${selD.has(d.id)?"checked":""}><span>${esc(d.nom)}</span><span class="n">${n}</span></label>`}).join(""):""}).join("")||`<p class="hint">Aucun dépôt.</p>`;
     $("#iv-ld",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selD.add(c.value):selD.delete(c.value);drawG();sum()})};
-  const drawG=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();$("#iv-lg",m).innerHTML=grs.filter(x=>!f||x.nom.toLowerCase().includes(f)).map(x=>`<label class="dep-opt"><input type="checkbox" value="${x.id}" ${selG.has(x.id)?"checked":""}><span class="swatch" style="--c:${groupColor(x)};width:10px;height:10px;border-radius:50%;background:var(--c);flex:none"></span><span>${esc(x.nom)}</span><span class="n">${selD.size?cntG(x.id):""}</span></label>`).join("")||`<p class="hint">Aucun groupe.</p>`;
+  const drawG=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();
+    if(!selD.size){selG.clear();$("#iv-lg",m).innerHTML=`<p class="hint" style="padding:10px;margin:0">Cochez d'abord un ou plusieurs dépôts : seuls les groupes qui ont des articles dans ces dépôts s'afficheront ici.</p>`;return}
+    const av=availG();for(const id of [...selG])if(!av.some(x=>x.id===id))selG.delete(id);
+    $("#iv-lg",m).innerHTML=av.filter(x=>!f||x.nom.toLowerCase().includes(f)).map(x=>`<label class="dep-opt"><input type="checkbox" value="${x.id}" ${selG.has(x.id)?"checked":""}><span class="swatch" style="--c:${groupColor(x)};width:10px;height:10px;border-radius:50%;background:var(--c);flex:none"></span><span>${esc(x.nom)}</span><span class="n">${cntG(x.id)}</span></label>`).join("")||`<p class="hint" style="padding:10px;margin:0">${av.length?"Aucun groupe ne correspond à la recherche.":"Aucun article dans ce(s) dépôt(s)."}</p>`;
     $("#iv-lg",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selG.add(c.value):selG.delete(c.value);sum()})};
   $("#iv-qd",m).oninput=drawD;$("#iv-qg",m).oninput=drawG;
   $("#iv-alld",m).onclick=()=>{const f=$("#iv-qd",m).value.trim().toLowerCase();deps.filter(d=>!f||d.nom.toLowerCase().includes(f)).forEach(d=>selD.add(d.id));drawD();drawG();sum()};
   $("#iv-nod",m).onclick=()=>{selD.clear();drawD();drawG();sum()};
-  $("#iv-allg",m).onclick=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();grs.filter(x=>!f||x.nom.toLowerCase().includes(f)).forEach(x=>selG.add(x.id));drawG();sum()};
+  $("#iv-allg",m).onclick=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();availG().filter(x=>!f||x.nom.toLowerCase().includes(f)).forEach(x=>selG.add(x.id));drawG();sum()};
   $("#iv-nog",m).onclick=()=>{selG.clear();drawG();sum()};
   m.querySelectorAll("#iv-mode button").forEach(x=>x.onclick=()=>{mode=x.dataset.v;m.querySelectorAll("#iv-mode button").forEach(y=>y.setAttribute("aria-pressed",y===x));sum()});
   $("#iv-zero",m).onchange=e=>{withZero=e.target.checked;drawG();sum()};
+  $("#iv-nd",m).closest(".trx-cat").querySelector(".iv-list").setAttribute("aria-label","Dépôts");
   drawD();drawG();sum();
   $("#iv-go",m).onclick=()=>guard(m,async()=>{const p=plan();if(!p.length)throw{message:"Rien à générer."};
     const date=$("#iv-date",m).value||today(),note=$("#iv-note",m).value.trim().toUpperCase(),ids=[];const go=$("#iv-go",m);
