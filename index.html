@@ -314,6 +314,23 @@ tfoot td{border-top:1px solid var(--line);border-bottom:0}
 @media (prefers-reduced-motion:no-preference){.card,.btn{transition:border-color .15s,box-shadow .15s,filter .15s}}
 </style>
 <style>
+/* ===== Inventaires ===== */
+.iv-prog{height:6px;background:var(--line);border-radius:99px;overflow:hidden}.iv-prog span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.iv-bad{color:var(--crit)}.iv-good{color:var(--ok)}
+.iv-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}@media (max-width:720px){.iv-cols{grid-template-columns:minmax(0,1fr)}}
+.iv-list{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:1px}
+.iv-rows{border:1px solid var(--line);border-radius:10px;max-height:min(60vh,640px);overflow:auto;background:var(--surface)}
+.ivg{position:sticky;top:0;z-index:1;background:var(--surface-2);font-weight:700;font-size:12.5px;padding:7px 10px;border-bottom:1px solid var(--line);letter-spacing:.04em}
+.ivr{display:grid;grid-template-columns:52px minmax(0,1fr) 64px 120px minmax(0,190px);gap:10px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line)}
+.ivr .im{width:52px;height:52px;border-radius:8px;background:#fff;border:1px solid var(--line);overflow:hidden;display:grid;place-items:center;color:#9aa}.ivr .im img{width:100%;height:100%;object-fit:contain}.ivr .im svg{width:50%}
+.ivr .nm{min-width:0;display:flex;flex-direction:column}.ivr .nm b{font-size:13px;line-height:1.3}
+.ivr .un{font-size:12px;color:var(--muted)}
+.ivr .iv-in{font-family:var(--f-mono);font-size:16px;font-weight:600;text-align:center;padding:9px 6px}
+.ivr .iv-in.bad{border-color:var(--crit)}
+.ivr.done{background:color-mix(in srgb,var(--ok) 8%,transparent)}.ivr.done .iv-in{border-color:var(--ok)}
+@media (max-width:640px){.ivr{grid-template-columns:44px minmax(0,1fr) 100px}.ivr .im{width:44px;height:44px}.ivr .un{display:none}.ivr .iv-ob{grid-column:2/-1}}
+tr.ivg-r td{background:var(--surface-2);font-weight:700;font-size:12px;letter-spacing:.04em}
+.iv-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}@media (max-width:640px){.iv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* ===== Préférences d'affichage (par utilisateur) ===== */
 :root[data-upper="off"] body{text-transform:none}
 :root[data-icons="off"] .ti-ic{display:none}
@@ -587,6 +604,7 @@ onAuthStateChanged(auth,async u=>{
       <button data-tab="articles" aria-selected="false">Articles</button>
       <button data-tab="trs" aria-selected="false">Transferts <span class="tabn" id="trs-n" hidden></span></button>
       <button data-tab="decl" aria-selected="false">Casses / Pertes <span class="tabn" id="dcl-n" hidden></span></button>
+      <button data-tab="inv" aria-selected="false">Inventaires <span class="tabn" id="inv-n" hidden></span></button>
       <button data-tab="mvts" aria-selected="false">Mouvements</button>
       <button data-tab="params" aria-selected="false">Dépôts, groupes &amp; unités</button>
       <button data-tab="prefs" aria-selected="false">Paramètres</button>
@@ -603,11 +621,11 @@ onAuthStateChanged(auth,async u=>{
 <script>
 const HOTELS=["NOVOTEL","IBIS"];
 const GROUP_COLORS=["#0e5a53","#22508f","#b3332b","#a8711f","#6b4fa0","#2f7d4f","#c25e8a","#4f6d7a","#8a6d3b","#1f8a99"];
-const S={groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[]};
+const S={groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[],inventaires:[]};
 const loaded={};
 let db=null,user=null,assets=null,canWrite=true,canAdmin=false,myId=null;
 const names={};
-let ui={hotel:"ALL",tab:"dash",q:"",groupe:"",alert:false,view:"cards",mvType:"",mvQ:"",deps:[],depMode:"any",trQ:"",trSt:"",dcQ:"",dcSt:""};
+let ui={hotel:"ALL",tab:"dash",q:"",groupe:"",alert:false,view:"cards",mvType:"",mvQ:"",deps:[],depMode:"any",trQ:"",trSt:"",dcQ:"",dcSt:"",ivQ:"",ivSt:""};
 try{Object.assign(ui,JSON.parse(localStorage.getItem("mh-ui")||"{}"))}catch(e){}
 if(ui.hotel==="IBS")ui.hotel="IBIS";
 if(ui.tab==="stock"){ui.tab="articles";ui.view="table"}
@@ -668,6 +686,7 @@ function nextCode(){let m=0;for(const a of S.articles){const r=/^ART-(\d+)$/.exe
   sub("stock",db.collection("stock"));
   sub("mouvements",db.collection("mouvements").orderBy("ts","desc").limit(1000));
   sub("transferts",db.collection("transferts"));
+  sub("inventaires",db.collection("inventaires"));
 })();
 function setConn(ok,txt){const c=$("#conn");c.className="status "+(ok?"on":"off");c.querySelector("span").textContent=txt}
 let rq=0;function scheduleRender(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;if(ui.tab==="prefs"&&document.getElementById("pf-st"))return;renderBody()})}
@@ -715,6 +734,10 @@ function renderToolbar(){
     tb.innerHTML=`<input type="search" id="tb-dq" class="grow" placeholder="Rechercher N°, article, dépôt…" value="${esc(ui.dcQ)}">
       <div class="seg" role="group" aria-label="Statut">${[["","Tous"],["brouillon","Brouillons"],["valide","Validés"]].map(([k,l])=>`<button data-dst="${k}" aria-pressed="${ui.dcSt===k}">${l}</button>`).join("")}</div>
       ${w?`<button class="btn primary" id="tb-dc">+ Nouvelle déclaration</button>`:""}`;
+  } else if(ui.tab==="inv"){
+    tb.innerHTML=`<input type="search" id="tb-iq" class="grow" placeholder="Rechercher N°, dépôt, groupe…" value="${esc(ui.ivQ||"")}">
+      <div class="seg" role="group" aria-label="Statut">${[["","Tous"],["encours","En cours"],["valide","Validés"]].map(([k,l])=>`<button data-ist="${k}" aria-pressed="${(ui.ivSt||"")===k}">${l}</button>`).join("")}</div>
+      ${canAdmin?`<button class="btn primary" id="tb-iv">+ Nouvel inventaire</button>`:""}`;
   } else tb.innerHTML="";
   const on=(id,ev,fn)=>{const el=$("#"+id);if(el)el.addEventListener(ev,fn)};
   on("tb-art","click",()=>articleForm());
@@ -727,6 +750,9 @@ function renderToolbar(){
   on("tb-tq","input",e=>{ui.trQ=e.target.value;renderBody()});
   on("tb-dq","input",e=>{ui.dcQ=e.target.value;renderBody()});
   on("tb-dc","click",()=>transferEditor(null,{decl:true}));
+  on("tb-iv","click",()=>invCreate());
+  on("tb-iq","input",e=>{ui.ivQ=e.target.value;renderBody()});
+  tb.querySelectorAll("[data-ist]").forEach(b=>b.onclick=()=>{ui.ivSt=b.dataset.ist;saveUi();renderToolbar();renderBody()});
   tb.querySelectorAll("[data-dst]").forEach(b=>b.onclick=()=>{ui.dcSt=b.dataset.dst;saveUi();renderToolbar();renderBody()});
   tb.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{ui.trSt=b.dataset.st;saveUi();renderToolbar();renderBody()});
   on("tb-mt","change",e=>{ui.mvType=e.target.value;saveUi();renderBody()});
@@ -772,7 +798,8 @@ function renderBody(){
   if(loaded.articles&&ui.groupe&&!usedGroups().some(g=>g.id===ui.groupe)){ui.groupe="";if(gs)gs.value=""}
   updDepUI();
   for(const[idn,dc]of[["#trs-n",false],["#dcl-n",true]]){const tn=$(idn);if(tn){const n=draftCount(dc);tn.hidden=!n;tn.textContent=n;tn.title=n+" brouillon(s) à valider"}}
-  ({dash:renderDash,articles:renderArticles,stock:renderArticles,trs:b=>renderTransferts(b,false),decl:renderDecl,mvts:renderMoves,params:renderParams,prefs:renderPrefs}[ui.tab]||renderDash)(b);
+  {const ivn=$("#inv-n");if(ivn){const n=invCount();ivn.hidden=!n;ivn.textContent=n;ivn.title=n+" inventaire(s) en cours"}}
+  ({dash:renderDash,articles:renderArticles,stock:renderArticles,trs:b=>renderTransferts(b,false),decl:renderDecl,inv:renderInv,mvts:renderMoves,params:renderParams,prefs:renderPrefs}[ui.tab]||renderDash)(b);
 }
 
 /* ---------- filtering ---------- */
@@ -1171,7 +1198,7 @@ function moveForm(pre={}){
   const arts=artVis().slice().sort((a,b)=>a.nom.localeCompare(b.nom));const g=G();
   const grouped={};for(const a of arts){const k=g[a.groupeId]?.nom||"Sans groupe";(grouped[k]=grouped[k]||[]).push(a)}
   const m=openModal(`<header><h2>Nouveau mouvement</h2><button class="btn ghost sm" data-close>Fermer</button></header>
-   <div class="mb"><div class="seg" role="group" id="mv-type" style="align-self:flex-start;flex-wrap:wrap">${Object.entries(MV).map(([k,v])=>`<button data-t="${k}" aria-pressed="${(pre.type||"entree")===k}">${v.label}</button>`).join("")}</div>
+   <div class="mb"><div class="seg" role="group" id="mv-type" style="align-self:flex-start;flex-wrap:wrap">${Object.entries(MV).filter(([k])=>k!=="inventaire").map(([k,v])=>`<button data-t="${k}" aria-pressed="${(pre.type||"entree")===k}">${v.label}</button>`).join("")}</div>
     <div class="fgrid">
      <label class="f full">Article<select id="mv-art">${Object.keys(grouped).sort().map(k=>`<optgroup label="${esc(k)}">${grouped[k].map(a=>`<option value="${a.id}" ${pre.articleId===a.id?"selected":""}>${esc(a.nom)} (${esc(a.code||"")})</option>`).join("")}</optgroup>`).join("")}</select></label>
      <label class="f" id="mv-dl">Dépôt<select id="mv-dep">${deps.map(d=>`<option value="${d.id}">${esc(d.nom)}</option>`).join("")}</select></label>
@@ -1539,12 +1566,266 @@ async function recordMove(mv,extraArts={}){
   for(const e of effets){const k=mv.articleId+"__"+e.depotId;const nv=Math.round((qty(mv.articleId,e.depotId)+e.delta)*1000)/1000;stockMap[k]=nv;await db.collection("stock").doc(k).set({articleId:mv.articleId,depotId:e.depotId,qte:nv,maj:Date.now()})}
 }
 
+/* ---------- Inventaires : fiches par dépôt et groupes, saisie, état, validation ---------- */
+const INV_ST={encours:{label:"En cours",cls:"warn"},valide:{label:"Validé",cls:"ok"}};
+const invPill=t=>`<span class="pill ${INV_ST[t.statut]?.cls||""}">${INV_ST[t.statut]?.label||esc(t.statut||"")}</span>`;
+const INV_SIGN=["Compté par","Responsable du dépôt","Contrôleur Interne"];
+let NUM_HOLDER=null;
+async function nextNum(kind,prefix){
+  const y=new Date().getFullYear(),ref=db.doc("compteurs/"+kind+"-"+y),holder=NUM_HOLDER||(NUM_HOLDER=(myId||"anon")+"-"+Math.random().toString(36).slice(2));
+  for(let i=0;i<10;i++){const r=await ref.acquire({holder,ttlMs:8000});
+    if(r.acquired){const s=await ref.get();const n=(s.exists?(+s.data().n||0):0)+1;await ref.set({n,maj:Date.now(),par:myId||null});return`${prefix}-${y}-${String(n).padStart(4,"0")}`}
+    await new Promise(res=>setTimeout(res,500+Math.random()*700))}
+  throw{message:"La numérotation est occupée par un autre utilisateur. Réessayez dans un instant."};
+}
+const invLines=t=>{const a=A(),g=G();return Object.entries(t.lignes||{}).map(([aid,l])=>({aid,...l,ar:a[aid],gn:g[l.g]?.nom||"SANS GROUPE"})).sort((x,y)=>x.gn.localeCompare(y.gn)||String(x.ar?.nom||x.n||"").localeCompare(String(y.ar?.nom||y.n||"")))};
+const hasC=l=>l.c!==undefined&&l.c!==null&&l.c!=="";
+function invStats(t){let n=0,c=0,e=0,pos=0,neg=0;for(const l of Object.values(t.lignes||{})){n++;if(hasC(l)){c++;const d=(+l.c)-(+l.th||0);if(Math.abs(d)>1e-9){e++;if(d>0)pos+=d;else neg+=d}}}return{n,c,e,pos,neg}}
+const invCount=()=>(S.inventaires||[]).filter(t=>t.statut!=="valide").length;
+const invGroupsTxt=t=>{const g=G(),gs=t.groupes||[];return gs.length?gs.map(id=>g[id]?.nom||"?").join(", "):"Tous les groupes"};
+function renderInv(b){
+  if(!loaded.inventaires){b.innerHTML=`<div class="empty"><p>Chargement…</p></div>`;return}
+  const dm=D(),g=G(),q=(ui.ivQ||"").trim().toLowerCase();
+  let rows=(S.inventaires||[]).slice();
+  if(ui.ivSt)rows=rows.filter(t=>t.statut===ui.ivSt);
+  if(ui.hotel!=="ALL")rows=rows.filter(t=>{const h=dm[t.depotId]?.hotel;return h===ui.hotel||h==="LES2"});
+  if(q)rows=rows.filter(t=>(t.numero+" "+(dm[t.depotId]?.nom||"")+" "+invGroupsTxt(t)+" "+(t.note||"")).toLowerCase().includes(q));
+  rows.sort((x,y)=>(x.statut===y.statut?0:x.statut==="encours"?-1:1)||(y.cree||0)-(x.cree||0));
+  resolveNames(rows.flatMap(t=>[t.creePar,t.validePar]));
+  if(!rows.length){b.innerHTML=`<div class="empty"><h3>Aucun inventaire</h3><p>${q||ui.ivSt?"Rien ne correspond à ce filtre.":canAdmin?"Générez une ou plusieurs fiches d'inventaire : choisissez les dépôts et les groupes d'articles à compter.":"Aucun inventaire n'a encore été créé par l'administrateur."}</p>${canAdmin&&!q?`<button class="btn primary" id="iv-empty">+ Nouvel inventaire</button>`:""}</div>`;const e=$("#iv-empty",b);if(e)e.onclick=()=>invCreate();return}
+  b.innerHTML=`<div class="trlist">${rows.map(t=>{const s=invStats(t),pct=s.n?Math.round(s.c/s.n*100):0,gs=t.groupes||[];
+    return`<div class="trcard ${t.statut==="valide"?"":"brouillon"}" data-iv="${esc(t.id)}" role="button" tabindex="0">
+     <div class="trc-top"><span class="trno">${esc(t.numero)}</span>${invPill(t)}<span class="grow"></span><span class="hint mono">${fdate(t.date)}</span></div>
+     <div><b>${esc(dm[t.depotId]?.nom||"Dépôt supprimé")}</b>${t.note?`<div class="hint trc-note">${esc(t.note)}</div>`:""}</div>
+     <div style="display:flex;gap:5px;flex-wrap:wrap">${gs.length?gs.slice(0,4).map(id=>`<span class="chip dot" style="--c:${groupColor(g[id])}">${esc(g[id]?.nom||"?")}</span>`).join("")+(gs.length>4?`<span class="chip">+${gs.length-4}</span>`:""):`<span class="chip">Tous les groupes</span>`}</div>
+     <div class="iv-prog" title="${pct} %"><span style="width:${pct}%"></span></div>
+     <div class="trc-foot"><span>${s.c} / ${s.n} article${s.n>1?"s":""} compté${s.c>1?"s":""}</span>${(canAdmin||t.statut==="valide")&&s.c?`<span class="${s.e?"iv-bad":"iv-good"}">${s.e?s.e+" écart"+(s.e>1?"s":""):"Aucun écart"}</span>`:""}</div>
+     <div class="hint">${t.statut==="valide"?`Validé${names[t.validePar]?" par "+esc(names[t.validePar]):""} le ${fdt(t.valideLe)}`:`Créé${names[t.creePar]?" par "+esc(names[t.creePar]):""} le ${fdt(t.cree)}`}</div>
+     <div class="trc-act">${t.statut!=="valide"&&canWrite?`<button type="button" class="btn sm primary" data-a="saisie">✎ Saisir le comptage</button>`:""}<button type="button" class="btn sm" data-a="fiche">🖨 Fiche</button>${canAdmin||t.statut==="valide"?`<button type="button" class="btn sm" data-a="etat">📊 État</button>`:""}${canAdmin&&t.statut!=="valide"?`<span class="grow"></span><button type="button" class="btn sm danger" data-a="del" title="Supprimer">🗑</button>`:""}</div></div>`}).join("")}</div>`;
+  b.querySelectorAll("[data-iv]").forEach(el=>{const id=el.dataset.iv;
+    const open=()=>{const t=(S.inventaires||[]).find(x=>x.id===id);if(!t)return;if(t.statut!=="valide"&&canWrite)invSaisie(id);else if(canAdmin||t.statut==="valide")invEtat(id);else invFiche([id])};
+    el.onclick=e=>{if(e.target.closest("[data-a]"))return;open()};
+    el.onkeydown=e=>{if((e.key==="Enter"||e.key===" ")&&e.target===el){e.preventDefault();open()}};
+    el.querySelectorAll("[data-a]").forEach(btn=>btn.onclick=e=>{e.stopPropagation();const a=btn.dataset.a;
+      if(a==="saisie")invSaisie(id);else if(a==="fiche")invFiche([id]);else if(a==="etat")invEtat(id);
+      else if(a==="del")confirmInline(btn,"Supprimer ?",async()=>{try{const r=db.doc("inventaires/"+id),s=await r.get();if(s.exists&&s.data().statut==="valide"){toast("Inventaire validé : suppression impossible.");return}await r.delete();toast("Inventaire "+id+" supprimé")}catch(x){toast(errText(x))}})})});
+}
+/* articles d'un dépôt pour des groupes donnés */
+function invArticles(depId,groupIds,withZero){
+  const dep=D()[depId];if(!dep)return[];const gs=new Set(groupIds);
+  return S.articles.filter(a=>(!gs.size||gs.has(a.groupeId))&&(withZero?(dep.hotel==="LES2"||!a.hotel||a.hotel==="LES2"||a.hotel===dep.hotel||qty(a.id,depId)!==0):inDep(a,depId)));
+}
+function invCreate(){
+  if(!canAdmin){toast("Réservé à l'administrateur.");return}
+  const g=G(),deps=sortedDeps().filter(d=>!isPerte(d)&&(ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2")),grs=S.groupes.slice().sort((x,y)=>x.nom.localeCompare(y.nom));
+  const selD=new Set(),selG=new Set();let mode="depot",withZero=false;
+  const m=openModal(`<header><h2>Nouvel inventaire</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb">
+    <div class="fgrid"><label class="f">Date de l'inventaire<input type="date" id="iv-date" value="${today()}"></label><label class="f">Note / motif<input type="text" id="iv-note" placeholder="Ex. INVENTAIRE MENSUEL OCTOBRE"></label></div>
+    <div class="iv-cols">
+     <section class="trx-cat"><div class="trx-h"><span class="step">1</span>Dépôts <span class="badge" id="iv-nd">0</span><span class="grow"></span><button type="button" class="btn ghost sm" id="iv-alld">Tout</button><button type="button" class="btn ghost sm" id="iv-nod">Aucun</button></div><input type="search" id="iv-qd" placeholder="Chercher un dépôt…"><div class="iv-list" id="iv-ld"></div></section>
+     <section class="trx-cat"><div class="trx-h"><span class="step">2</span>Groupes d'articles <span class="badge" id="iv-ng">0</span><span class="grow"></span><button type="button" class="btn ghost sm" id="iv-allg">Tout</button><button type="button" class="btn ghost sm" id="iv-nog">Aucun</button></div><input type="search" id="iv-qg" placeholder="Chercher un groupe…"><div class="iv-list" id="iv-lg"></div></section>
+    </div>
+    <div class="pf-row"><span>Découpage des fiches</span><div class="tseg2" id="iv-mode"><button type="button" data-v="depot" aria-pressed="true">Une fiche par dépôt (groupes choisis ensemble)</button><button type="button" data-v="groupe" aria-pressed="false">Une fiche par dépôt et par groupe</button></div></div>
+    <label class="check"><input type="checkbox" id="iv-zero"> Inclure aussi les articles du groupe sans stock dans le dépôt</label>
+    <p class="lock warn" id="iv-sum" style="margin:0"></p><div class="err"></div></div>
+   <footer><button class="btn" data-close>Annuler</button><button class="btn primary" id="iv-go">Générer les fiches</button></footer>`,{wide:true});
+  const plan=()=>{const out=[];for(const d of deps){if(!selD.has(d.id))continue;const gl=grs.filter(x=>selG.has(x.id)).map(x=>x.id);
+      const sets=mode==="groupe"?gl.map(x=>[x]):[gl];for(const gs of sets){const arts=invArticles(d.id,gs,withZero);if(arts.length)out.push({dep:d,groupes:gs,arts})}}return out};
+  const sum=()=>{$("#iv-nd",m).textContent=selD.size;$("#iv-ng",m).textContent=selG.size;const p=plan(),n=p.reduce((s,x)=>s+x.arts.length,0);
+    $("#iv-sum",m).textContent=!selD.size||!selG.size?"Choisissez au moins un dépôt et un groupe d'articles.":p.length?`→ ${p.length} fiche${p.length>1?"s":""} d'inventaire · ${n} ligne${n>1?"s":""} à compter`:"Aucun article de ces groupes dans ces dépôts (cochez « Inclure aussi les articles sans stock » si besoin).";
+    $("#iv-go",m).disabled=!p.length;$("#iv-go",m).textContent=p.length>1?`Générer les ${p.length} fiches`:"Générer la fiche"};
+  const cntG=gid=>{let n=0;for(const a of S.articles)if(a.groupeId===gid&&[...selD].some(d=>withZero?true:inDep(a,d)))n++;return n};
+  const drawD=()=>{const f=$("#iv-qd",m).value.trim().toLowerCase();$("#iv-ld",m).innerHTML=[["LES2","Commun"],["NOVOTEL","NOVOTEL"],["IBIS","IBIS"]].map(([h,l])=>{const ds=deps.filter(d=>d.hotel===h&&(!f||d.nom.toLowerCase().includes(f)));return ds.length?`<div class="dd-h" style="color:var(--${h==="IBIS"?"ibs":h==="LES2"?"accent":"novo"})">${l}</div>`+ds.map(d=>{let n=0;for(const a of S.articles)if(inDep(a,d.id))n++;return`<label class="dep-opt"><input type="checkbox" value="${d.id}" ${selD.has(d.id)?"checked":""}><span>${esc(d.nom)}</span><span class="n">${n}</span></label>`}).join(""):""}).join("")||`<p class="hint">Aucun dépôt.</p>`;
+    $("#iv-ld",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selD.add(c.value):selD.delete(c.value);drawG();sum()})};
+  const drawG=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();$("#iv-lg",m).innerHTML=grs.filter(x=>!f||x.nom.toLowerCase().includes(f)).map(x=>`<label class="dep-opt"><input type="checkbox" value="${x.id}" ${selG.has(x.id)?"checked":""}><span class="swatch" style="--c:${groupColor(x)};width:10px;height:10px;border-radius:50%;background:var(--c);flex:none"></span><span>${esc(x.nom)}</span><span class="n">${selD.size?cntG(x.id):""}</span></label>`).join("")||`<p class="hint">Aucun groupe.</p>`;
+    $("#iv-lg",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selG.add(c.value):selG.delete(c.value);sum()})};
+  $("#iv-qd",m).oninput=drawD;$("#iv-qg",m).oninput=drawG;
+  $("#iv-alld",m).onclick=()=>{const f=$("#iv-qd",m).value.trim().toLowerCase();deps.filter(d=>!f||d.nom.toLowerCase().includes(f)).forEach(d=>selD.add(d.id));drawD();drawG();sum()};
+  $("#iv-nod",m).onclick=()=>{selD.clear();drawD();drawG();sum()};
+  $("#iv-allg",m).onclick=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();grs.filter(x=>!f||x.nom.toLowerCase().includes(f)).forEach(x=>selG.add(x.id));drawG();sum()};
+  $("#iv-nog",m).onclick=()=>{selG.clear();drawG();sum()};
+  m.querySelectorAll("#iv-mode button").forEach(x=>x.onclick=()=>{mode=x.dataset.v;m.querySelectorAll("#iv-mode button").forEach(y=>y.setAttribute("aria-pressed",y===x));sum()});
+  $("#iv-zero",m).onchange=e=>{withZero=e.target.checked;drawG();sum()};
+  drawD();drawG();sum();
+  $("#iv-go",m).onclick=()=>guard(m,async()=>{const p=plan();if(!p.length)throw{message:"Rien à générer."};
+    const date=$("#iv-date",m).value||today(),note=$("#iv-note",m).value.trim().toUpperCase(),ids=[];const go=$("#iv-go",m);
+    for(const[i,f]of p.entries()){go.textContent=`Création ${i+1} / ${p.length}…`;const numero=await nextNum("inventaire","INV");const lignes={};
+      for(const a of f.arts)lignes[a.id]={g:a.groupeId||"",th:qty(a.id,f.dep.id),n:a.nom||""};
+      await db.doc("inventaires/"+numero).set({numero,statut:"encours",depotId:f.dep.id,groupes:f.groupes,date,note,inclZero:withZero,lignes,cree:Date.now(),creePar:myId||null});ids.push(numero)}
+    closeModal();if(ui.tab!=="inv"){ui.tab="inv";ui.ivSt="";saveUi();syncHeader();renderAll()}
+    const mm=openModal(`<header><h2>${ids.length} fiche${ids.length>1?"s":""} d'inventaire créée${ids.length>1?"s":""}</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+     <div class="mb"><div class="list">${ids.map(id=>{const t={numero:id,...p[ids.indexOf(id)]};return`<div class="li"><div class="t"><b>${esc(id)}</b><span>${esc(t.dep.nom)} · ${t.groupes.map(x=>g[x]?.nom||"").join(", ")} · ${t.arts.length} articles</span></div><button class="btn sm" data-f="${esc(id)}">🖨 Fiche</button></div>`}).join("")}</div>
+     <p class="hint" style="margin:0">Imprimez les fiches pour le comptage, puis saisissez les quantités comptées avec « ✎ Saisir le comptage ».</p><div class="err"></div></div>
+     <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="iv-allpdf">⬇ Toutes les fiches en un PDF</button></footer>`);
+    mm.querySelectorAll("[data-f]").forEach(x=>x.onclick=()=>invFiche([x.dataset.f]));
+    $("#iv-allpdf",mm).onclick=()=>invPdfDl(ids,"fiche",mm);
+  });
+}
+/* saisie du comptage (à l'aveugle) */
+function invSaisie(id){
+  const t0=(S.inventaires||[]).find(x=>x.id===id);if(!t0)return;if(t0.statut==="valide"){invEtat(id);return}
+  const u=U(),dm=D(),loc=JSON.parse(JSON.stringify(t0.lignes||{}));let q="",fg="",todo=false;
+  const ls=invLines(t0),gnames=[...new Set(ls.map(l=>l.gn))];
+  const m=openModal(`<header><div class="trh"><h2>Saisie du comptage</h2><span class="trno">N° ${esc(t0.numero)}</span>${invPill(t0)}</div><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb">
+    <dl class="kv"><dt>Dépôt</dt><dd><b>${esc(dm[t0.depotId]?.nom||"—")}</b></dd><dt>Groupes</dt><dd>${esc(invGroupsTxt(t0))}</dd><dt>Date</dt><dd>${fdate(t0.date)}</dd></dl>
+    <div style="display:flex;gap:10px;align-items:center"><div class="iv-prog" style="flex:1"><span id="iv-bar"></span></div><b id="iv-pc" class="mono"></b></div>
+    <div class="trx-filters"><input type="search" id="ivs-q" placeholder="Rechercher un article, un code…"><select id="ivs-g"><option value="">Tous les groupes</option>${gnames.map(n=>`<option>${esc(n)}</option>`).join("")}</select><label class="check"><input type="checkbox" id="ivs-todo"> Non comptés seulement</label></div>
+    <p class="hint" style="margin:0">Saisissez la quantité réellement comptée. Chaque saisie est enregistrée immédiatement. Laissez vide un article non compté.</p>
+    <div class="iv-rows" id="ivs-rows"></div><div class="err"></div></div>
+   <footer><button class="btn left" id="ivs-fiche">🖨 Fiche</button>${canAdmin?`<button class="btn" id="ivs-etat">📊 État d'inventaire</button>`:""}<button class="btn primary" data-close>Terminer</button></footer>`,{wide:"xl"});
+  const prog=()=>{const n=Object.keys(loc).length,c=Object.values(loc).filter(hasC).length,p=n?Math.round(c/n*100):0;$("#iv-bar",m).style.width=p+"%";$("#iv-pc",m).textContent=`${c} / ${n}`};
+  const draw=()=>{const words=q?q.split(/\s+/):[];let lastG=null,html="";
+    for(const l of ls){if(fg&&l.gn!==fg)continue;if(todo&&hasC(loc[l.aid]))continue;const nm=l.ar?.nom||l.n||"Article supprimé";
+      if(words.length){const hay=(nm+" "+(l.ar?.code||"")+" "+(l.ar?.reference||"")).toLowerCase();if(!words.every(w=>hay.includes(w)))continue}
+      if(l.gn!==lastG){html+=`<div class="ivg">${esc(l.gn)}</div>`;lastG=l.gn}
+      const s=photoSrc(l.ar),v=loc[l.aid]||{},un=u[l.ar?.uniteId];
+      html+=`<div class="ivr ${hasC(v)?"done":""}" data-aid="${esc(l.aid)}"><span class="im">${s?`<img class="zoomable" src="${esc(s)}" data-zoom="${esc(s)}" data-cap="${esc(nm)}" alt="" loading="lazy">`:PH_SVG}</span><div class="nm"><b>${esc(nm)}</b><span class="hint mono">${esc(l.ar?.code||"")}</span></div><span class="un">${uS(un?.abrev||un?.nom||"")}</span><input type="number" inputmode="decimal" min="0" step="any" class="iv-in" value="${hasC(v)?esc(v.c):""}" placeholder="Qté" aria-label="Quantité comptée ${esc(nm)}"><input type="text" class="iv-ob" value="${esc(v.o||"")}" placeholder="Observation"></div>`}
+    $("#ivs-rows",m).innerHTML=html||`<p class="hint" style="padding:14px">Aucun article ne correspond.</p>`;
+    const ins=[...$("#ivs-rows",m).querySelectorAll(".iv-in")];
+    ins.forEach((inp,i)=>{const row=inp.closest(".ivr"),aid=row.dataset.aid;
+      inp.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();inp.dispatchEvent(new Event("change"));const nx=ins[i+1];if(nx){nx.focus();nx.select()}}};
+      inp.onchange=async()=>{const raw=inp.value.trim(),v=raw===""?null:Math.max(0,+raw);if(raw!==""&&isNaN(+raw))return;
+        const cur=loc[aid]||(loc[aid]={});if((hasC(cur)?+cur.c:null)===v)return;
+        try{await db.doc("inventaires/"+id).update({["lignes/"+aid+"/c"]:v,["lignes/"+aid+"/par"]:myId||null,["lignes/"+aid+"/t"]:Date.now()});
+          if(v===null)delete cur.c;else cur.c=v;row.classList.toggle("done",v!==null);inp.classList.remove("bad");prog()}
+        catch(x){inp.classList.add("bad");m.querySelector(".err").textContent=errText(x)}};
+      const ob=row.querySelector(".iv-ob");ob.onchange=async()=>{const o=ob.value.trim().toUpperCase();ob.value=o;try{await db.doc("inventaires/"+id).update({["lignes/"+aid+"/o"]:o||null});(loc[aid]||(loc[aid]={})).o=o}catch(x){m.querySelector(".err").textContent=errText(x)}}});
+    prog()};
+  $("#ivs-q",m).oninput=e=>{q=e.target.value.trim().toLowerCase();draw()};
+  $("#ivs-g",m).onchange=e=>{fg=e.target.value;draw()};
+  $("#ivs-todo",m).onchange=e=>{todo=e.target.checked;draw()};
+  $("#ivs-fiche",m).onclick=()=>invFiche([id]);
+  const et=$("#ivs-etat",m);if(et)et.onclick=()=>invEtat(id);
+  draw();setTimeout(()=>{const f=m.querySelector(".iv-in");if(f)f.focus()},60);
+}
+/* état d'inventaire : théorique / compté / écart */
+function invEtat(id){
+  const t=(S.inventaires||[]).find(x=>x.id===id);if(!t)return;
+  if(!canAdmin&&t.statut!=="valide"){toast("L'état d'inventaire est visible après validation.");return}
+  const u=U(),dm=D(),ls=invLines(t),s=invStats(t);let onlyE=false;resolveNames([t.validePar,t.creePar]);
+  const m=openModal(`<header><div class="trh"><h2>État d'inventaire</h2><span class="trno">N° ${esc(t.numero)}</span>${invPill(t)}</div><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb">
+    ${t.statut==="valide"?`<p class="lock">🔒 Inventaire validé le ${fdt(t.valideLe)}${names[t.validePar]?" par "+esc(names[t.validePar]):""} : le stock du dépôt a été corrigé avec les quantités comptées.</p>`:`<p class="lock warn">Inventaire en cours : le stock n'est pas encore corrigé. Stock théorique = stock du dépôt au moment de la création de la fiche (${fdt(t.cree)}).</p>`}
+    <dl class="kv"><dt>Dépôt</dt><dd><b>${esc(dm[t.depotId]?.nom||"—")}</b></dd><dt>Groupes</dt><dd>${esc(invGroupsTxt(t))}</dd><dt>Date</dt><dd>${fdate(t.date)}</dd>${t.note?`<dt>Note</dt><dd>${esc(t.note)}</dd>`:""}</dl>
+    <div class="kpis iv-kpis"><div class="kpi"><span class="eyebrow">Articles</span><b>${s.n}</b></div><div class="kpi"><span class="eyebrow">Comptés</span><b>${s.c}</b><span class="sub">${s.n-s.c} non compté${s.n-s.c>1?"s":""}</span></div><div class="kpi ${s.e?"alert":""}"><span class="eyebrow">Écarts</span><b>${s.e}</b><span class="sub">${s.c-s.e} conforme${s.c-s.e>1?"s":""}</span></div><div class="kpi"><span class="eyebrow">Écart total</span><b><span class="iv-good">+${fmt(s.pos)}</span> / <span class="iv-bad">${fmt(s.neg)}</span></b><span class="sub">surplus / manquants</span></div></div>
+    <label class="check"><input type="checkbox" id="ive-only"> Afficher seulement les écarts et les non comptés</label>
+    <div class="tablewrap" id="ive-tab"></div><div class="err"></div></div>
+   <footer><button class="btn left" id="ive-pdf">⬇ État en PDF</button><button class="btn" id="ive-fiche">🖨 Fiche</button>${t.statut!=="valide"&&canWrite?`<button class="btn" id="ive-saisie">✎ Saisie</button>`:""}${canAdmin&&t.statut!=="valide"?`<button class="btn primary" id="ive-val">✓ Valider l'inventaire</button>`:`<button class="btn primary" data-close>Fermer</button>`}</footer>`,{wide:"xl"});
+  const draw=()=>{let lastG=null,rows="";
+    for(const l of ls){const c=hasC(l),d=c?(+l.c)-(+l.th||0):null;if(onlyE&&c&&Math.abs(d)<1e-9)continue;
+      if(l.gn!==lastG){rows+=`<tr class="ivg-r"><td colspan="7">${esc(l.gn)}</td></tr>`;lastG=l.gn}
+      const s2=photoSrc(l.ar),nm=l.ar?.nom||l.n||"Article supprimé",un=u[l.ar?.uniteId];
+      rows+=`<tr><td><div class="artcell">${s2?`<img class="thumb zoomable" src="${esc(s2)}" data-zoom="${esc(s2)}" data-cap="${esc(nm)}" alt="" loading="lazy">`:`<span class="thumb"></span>`}<div><b>${esc(nm)}</b><div class="mono hint">${esc(l.ar?.code||"")}</div></div></div></td><td>${uS(un?.nom||"")}</td><td class="r num">${fmt(l.th||0)}</td><td class="r num"><b>${c?fmt(l.c):`<span class="hint">non compté</span>`}</b></td><td class="r num ${d>0?"iv-good":d<0?"iv-bad":""}"><b>${c?(d>0?"+":"")+fmt(d):"—"}</b></td>${t.statut==="valide"?`<td class="r num hint">${l.av!==undefined?fmt(l.av):""}</td>`:"<td></td>"}<td>${esc(l.o||"")}</td></tr>`}
+    $("#ive-tab",m).innerHTML=`<table><thead><tr><th>Article</th><th>Unité</th><th class="r">Stock théorique</th><th class="r">Compté</th><th class="r">Écart</th><th class="r">${t.statut==="valide"?"Stock avant validation":""}</th><th>Observation</th></tr></thead><tbody>${rows||`<tr><td colspan="7" class="hint">Aucun écart : tout est conforme.</td></tr>`}</tbody></table>`};
+  $("#ive-only",m).onchange=e=>{onlyE=e.target.checked;draw()};draw();
+  $("#ive-pdf",m).onclick=()=>invPdfDl([id],"etat",m);
+  $("#ive-fiche",m).onclick=()=>invFiche([id]);
+  const sa=$("#ive-saisie",m);if(sa)sa.onclick=()=>invSaisie(id);
+  const vb=$("#ive-val",m);if(vb)vb.onclick=()=>{const err=m.querySelector(".err");err.textContent="";
+    if(!s.c){err.textContent="Aucune quantité n'a été saisie.";return}
+    confirmInline(vb,s.n-s.c?`Confirmer (${s.n-s.c} non compté${s.n-s.c>1?"s":""} : stock inchangé)`:"Confirmer : corriger le stock",()=>guard(m,async()=>{
+      vb.textContent="Validation…";const ref=db.doc("inventaires/"+id),holder=(myId||"anon")+"-"+Math.random().toString(36).slice(2);
+      const r=await ref.acquire({holder,ttlMs:60000});if(!r.acquired)throw{message:"Cet inventaire est en cours de validation par quelqu'un d'autre."};
+      const sn=await ref.get();const cur=sn.data();if(!cur||cur.statut==="valide")throw{message:"Cet inventaire a déjà été validé."};
+      const upd={};let nm=0;
+      for(const[aid,l]of Object.entries(cur.lignes||{})){if(!hasC(l))continue;const before=qty(aid,cur.depotId);upd["lignes/"+aid+"/av"]=before;
+        if(Math.abs(before-(+l.c))>1e-9){await recordMove({type:"inventaire",articleId:aid,depotId:cur.depotId,qte:+l.c,date:cur.date||today(),note:"INVENTAIRE "+cur.numero+(cur.note?" - "+cur.note:""),numero:cur.numero},{[aid]:{nom:l.n||""}});nm++}}
+      await ref.update({...upd,statut:"valide",valideLe:Date.now(),validePar:myId||null,nbCorrections:nm});
+      closeModal();toast(`Inventaire ${cur.numero} validé : ${nm} correction${nm>1?"s":""} de stock`);setTimeout(()=>invEtat(id),400)}))};
+}
+/* fiches / états en PDF (A4 portrait, plusieurs inventaires possibles dans un seul fichier) */
+function invFiche(ids){
+  const list=ids.map(id=>(S.inventaires||[]).find(x=>x.id===id)).filter(Boolean);if(!list.length)return;
+  const m=openModal(`<header><h2>${list.length>1?list.length+" fiches d'inventaire":"Fiche d'inventaire N° "+esc(list[0].numero)}</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p style="margin:0">Fiche de comptage <b>à l'aveugle</b> : photo, article, unité, case « Quantité comptée » et observations, classés par groupe d'article, avec signatures (${INV_SIGN.join(", ")}).</p>
+   <div class="list">${list.map(t=>`<div class="li"><div class="t"><b>${esc(t.numero)}</b><span>${esc(D()[t.depotId]?.nom||"")} · ${esc(invGroupsTxt(t))} · ${Object.keys(t.lignes||{}).length} articles</span></div>${invPill(t)}</div>`).join("")}</div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn" id="ivf-open">🖨 Ouvrir pour imprimer</button><button class="btn primary" id="ivf-dl">⬇ Télécharger le PDF</button></footer>`);
+  $("#ivf-dl",m).onclick=()=>invPdfDl(ids,"fiche",m);
+  $("#ivf-open",m).onclick=()=>invPdfDl(ids,"fiche",m,true);
+}
+async function invPdfDl(ids,kind,m,openIt){
+  const err=m&&m.querySelector(".err");if(err)err.textContent="";const btns=m?[...m.querySelectorAll("footer .btn")]:[];btns.forEach(b=>b.disabled=true);
+  try{const list=ids.map(id=>(S.inventaires||[]).find(x=>x.id===id)).filter(Boolean);
+    const bytes=await invPdf(list,kind);const blob=new Blob([bytes],{type:"application/pdf"});
+    const fn=(kind==="etat"?"ETAT D'INVENTAIRE ":"FICHE D'INVENTAIRE ")+(list.length>1?list[0].numero+" a "+list[list.length-1].numero:list[0].numero)+".pdf";
+    const url=URL.createObjectURL(blob);
+    if(openIt){const w=window.open(url,"_blank");if(!w)throw{message:"Ouverture bloquée par le navigateur : utilisez « Télécharger le PDF »."}}
+    else{const lk=document.createElement("a");lk.href=url;lk.download=fn.replace(/'/g," ");document.body.appendChild(lk);lk.click();lk.remove();toast("PDF téléchargé")}
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){if(err)err.textContent="PDF impossible : "+((e&&e.message)||e)}finally{btns.forEach(b=>b.disabled=false)}
+}
+async function invPdf(list,kind){
+  const u=U(),dm=D(),etat=kind==="etat";
+  const docs=list.map(t=>{const ls=invLines(t);return{t,ls,s:invStats(t)}});
+  const imgs=await loadPdfImgs({ls:docs.flatMap(d=>d.ls.map(l=>({aid:l.aid,src:photoSrc(l.ar)}))).filter(x=>x.src)}),usedImg=new Set();
+  const W=595,H=842,M=28,TW=W-2*M;const pages=[];let ops,cur;const newPage=()=>{ops=[];pages.push({ops,doc:cur})};
+  const enc=s=>{let o="";for(const ch of String(s)){const c=ch.codePointAt(0);let b;if(c<128||(c>=160&&c<256))b=c;else b={8364:128,8218:130,8222:132,8230:133,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,338:140,339:156,8482:153,215:215,8722:45}[c]??63;const x=String.fromCharCode(b);o+=(x==="("||x===")"||x==="\\")?"\\"+x:x}return o};
+  const col=(r,g,b,fill)=>ops.push(`${(r/255).toFixed(3)} ${(g/255).toFixed(3)} ${(b/255).toFixed(3)} ${fill?"rg":"RG"}`);
+  const text=(x,y,s,size=9,bold=false,align="left")=>{let xx=x;if(align!=="left"){const w=pdfW(s,size,bold);xx=align==="right"?x-w:x-w/2}ops.push(`BT /${bold?"F2":"F1"} ${size} Tf ${xx.toFixed(2)} ${(H-y).toFixed(2)} Td (${enc(s)}) Tj ET`)};
+  const rect=(x,y,w,h,fill)=>ops.push(`${x.toFixed(2)} ${(H-y-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill?"f":"S"}`);
+  const line=(x1,y1,x2,y2)=>ops.push(`${x1.toFixed(2)} ${(H-y1).toFixed(2)} m ${x2.toFixed(2)} ${(H-y2).toFixed(2)} l S`);
+  const cols=etat?[["Photo",46,"c"],["Article",171,"l"],["Unité",44,"c"],["Stock théorique",62,"c"],["Compté",58,"c"],["Écart",58,"c"],["Observation",100,"l"]]
+               :[["N°",24,"c"],["Photo",50,"c"],["Article",196,"l"],["Unité",48,"c"],["Quantité comptée",82,"c"],["Observations",139,"l"]];
+  const bottom=H-M-22;
+  for(const d of docs){cur=d;const t=d.t,valide=t.statut==="valide",st=valide?"VALIDÉ":"EN COURS",stc=valide?[30,120,70]:[190,110,20];
+    const titre=etat?"ÉTAT D'INVENTAIRE":"FICHE D'INVENTAIRE";d.titre=titre;d.st=st;
+    let y;
+    const header=first=>{text(W/2,M+16,titre,first?17:12,true,"center");text(W/2,M+(first?31:28),"N° "+t.numero,10,false,"center");
+      if(etat){ops.push("1.4 w");col(...stc);const bw=pdfW(st,12,true)+22;rect(W-M-bw,M,bw,24);col(...stc,true);text(W-M-bw/2,M+16.5,st,12,true,"center");col(0,0,0,true);col(0,0,0);ops.push("0.5 w")}
+      return M+(first?42:36)};
+    const thead=()=>{col(225,230,228,true);rect(M,y,TW,22,true);col(0,0,0,true);let x=M;for(const[c,w,al]of cols){const ls=pdfWrap(c.toUpperCase(),7,true,w-6);ls.forEach((s,k)=>al==="l"?text(x+4,y+9+k*8-(ls.length-1)*3,s,7,true):text(x+w/2,y+9+k*8-(ls.length-1)*3,s,7,true,"center"));x+=w}
+      col(120,120,120);rect(M,y,TW,22);x=M;for(const[,w]of cols.slice(0,-1)){x+=w;line(x,y,x,y+22)}col(0,0,0);y+=22};
+    newPage();y=header(true);
+    const info=[["Dépôt",dm[t.depotId]?.nom||"—"],["Groupe(s) d'articles",invGroupsTxt(t)],["Date",fdate(t.date)],etat?["Comptés / écarts",`${d.s.c} / ${d.s.n} · ${d.s.e} écart${d.s.e>1?"s":""}`]:["Nombre d'articles",String(d.s.n)]];
+    const iw=[150,190,70,TW-410];let ix=M;col(242,244,243,true);rect(M,y,TW,38,true);col(0,0,0,true);
+    info.forEach(([k,v],i)=>{text(ix+6,y+11,k.toUpperCase(),6.5,false);pdfWrap(v,8.5,true,iw[i]-12).slice(0,2).forEach((vv,k2)=>text(ix+6,y+22+k2*9.5,vv,8.5,true));ix+=iw[i]});y+=44;
+    if(t.note){text(M,y+6,"NOTE : "+t.note,8.5,false);y+=14}
+    thead();
+    let lastG=null,num=0;
+    for(const l of d.ls){const nm=(l.ar?.nom||l.n||"Article supprimé")+(l.ar?.code?"  ["+l.ar.code+"]":"");
+      if(l.gn!==lastG){if(y+18+40>bottom){newPage();y=header(false);thead()}col(236,240,238,true);rect(M,y,TW,16,true);col(0,0,0,true);text(M+6,y+11.5,l.gn,8.5,true);col(160,160,160);rect(M,y,TW,16);col(0,0,0);y+=16;lastG=l.gn}
+      const ai=etat?1:2,nl=pdfWrap(nm,8.5,false,cols[ai][1]-8),rh=Math.max(40,nl.length*10.5+8);
+      if(y+rh>bottom){newPage();y=header(false);thead();col(236,240,238,true);rect(M,y,TW,16,true);col(0,0,0,true);text(M+6,y+11.5,l.gn+" (suite)",8.5,true);col(160,160,160);rect(M,y,TW,16);col(0,0,0);y+=16}
+      num++;const ty=n=>y+(rh-n*10.5)/2+8;let x=M;const un=u[l.ar?.uniteId],unit=un?.abrev||un?.nom||"";
+      const drawImg=(cw)=>{const im=imgs[l.aid];if(im){const box=cw-8,sc=Math.min(box/im.w,(rh-8)/im.h),iw2=im.w*sc,ih=im.h*sc;ops.push(`q ${iw2.toFixed(2)} 0 0 ${ih.toFixed(2)} ${(x+4+(box-iw2)/2).toFixed(2)} ${(H-y-(rh-ih)/2-ih).toFixed(2)} cm /${im.name} Do Q`);usedImg.add(im.name)}else{col(150,150,150,true);text(x+cw/2,ty(1),"—",9,false,"center");col(0,0,0,true)}};
+      if(etat){drawImg(cols[0][1]);x+=cols[0][1];nl.forEach((s,k)=>text(x+4,ty(nl.length)+k*10.5,s,8.5,false));x+=cols[1][1];
+        text(x+cols[2][1]/2,ty(1),unit,8,false,"center");x+=cols[2][1];text(x+cols[3][1]/2,ty(1),fmt(l.th||0),9,false,"center");x+=cols[3][1];
+        const c=hasC(l),df=c?(+l.c)-(+l.th||0):0;text(x+cols[4][1]/2,ty(1),c?fmt(l.c):"non compté",c?9:7.5,c,"center");x+=cols[4][1];
+        if(c){if(df>0)col(30,120,70,true);else if(df<0)col(190,40,40,true);text(x+cols[5][1]/2,ty(1),(df>0?"+":"")+fmt(df),9,true,"center");col(0,0,0,true)}else text(x+cols[5][1]/2,ty(1),"—",9,false,"center");x+=cols[5][1];
+        pdfWrap(l.o||"",7.5,false,cols[6][1]-8).slice(0,3).forEach((s,k)=>text(x+4,y+12+k*9,s,7.5,false))}
+      else{text(x+cols[0][1]/2,ty(1),String(num),8,false,"center");x+=cols[0][1];drawImg(cols[1][1]);x+=cols[1][1];nl.forEach((s,k)=>text(x+4,ty(nl.length)+k*10.5,s,8.5,false));x+=cols[2][1];text(x+cols[3][1]/2,ty(1),unit,8,false,"center")}
+      col(160,160,160);rect(M,y,TW,rh);x=M;for(const[,w]of cols.slice(0,-1)){x+=w;line(x,y,x,y+rh)}col(0,0,0);y+=rh}
+    if(etat){if(y+20>bottom){newPage();y=header(false)}col(242,244,243,true);rect(M,y,TW,20,true);col(0,0,0,true);text(M+6,y+13.5,`TOTAL : ${d.s.n} articles · ${d.s.c} comptés · ${d.s.e} écarts · surplus +${fmt(d.s.pos)} · manquants ${fmt(d.s.neg)}`,8.5,true);col(160,160,160);rect(M,y,TW,20);col(0,0,0);y+=28}
+    else y+=10;
+    const need=h=>{if(y+h>bottom){newPage();y=header(false)}};
+    need(60);text(M,y+4,"COMMENTAIRES / OBSERVATIONS :",9.5,true);y+=9;col(140,140,140);rect(M,y,TW,40);for(let k=1;k<3;k++){col(215,215,215);line(M+8,y+k*13.3,W-M-8,y+k*13.3)}col(0,0,0);y+=52;
+    need(70);const lb=etat?"Date de validation":"Date du comptage";text(M,y,lb+" :",9.5,false);if(etat&&valide)text(M+pdfW(lb+" :",9.5)+8,y,fdt(t.valideLe),9.5,true);else{col(120,120,120);line(M+pdfW(lb+" :",9.5)+6,y+2,M+pdfW(lb+" :",9.5)+160,y+2);col(0,0,0)}y+=18;
+    const sw=TW/3;INV_SIGN.forEach((s,i)=>{const x=M+i*sw;text(x,y,s,9.5,true);text(x,y+17,"Nom :",8.5);text(x,y+35,"Signature :",8.5);col(120,120,120);line(x+30,y+19,x+sw-20,y+19);line(x+52,y+37,x+sw-20,y+37);col(0,0,0)});y+=48;
+  }
+  const byDoc=new Map();pages.forEach(p=>{if(!byDoc.has(p.doc))byDoc.set(p.doc,[]);byDoc.get(p.doc).push(p)});
+  for(const[d,ps]of byDoc)ps.forEach((p,i)=>{ops=p.ops;col(110,110,110,true);text(M,H-14,`${d.titre} — N° ${d.t.numero} — ${dm[d.t.depotId]?.nom||""}${etat?" — "+d.st:""}`,7);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${ps.length}`,7,false,"right");col(0,0,0,true)});
+  const objs=[];const add=s=>{objs.push(s);return objs.length};
+  const font1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),font2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  const pagesId=objs.length+1;objs.push(null);const kids=[];
+  const xo=[];for(const im of Object.values(imgs))if(usedImg.has(im.name))xo.push(`/${im.name} ${add(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bin.length} >>\nstream\n${im.bin}\nendstream`)} 0 R`);
+  const xres=xo.length?` /XObject << ${xo.join(" ")} >>`:"";
+  for(const p of pages){const c=p.ops.join("\n");const cid=add(`<< /Length ${c.length} >>\nstream\n${c}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >>${xres} >> /Contents ${cid} 0 R >>`))}
+  objs[pagesId-1]=`<< /Type /Pages /Kids [${kids.map(k=>k+" 0 R").join(" ")}] /Count ${kids.length} >>`;
+  const cat=add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`),inf=add(`<< /Title (${enc((etat?"Etat d'inventaire ":"Fiche d'inventaire ")+list.map(t=>t.numero).join(" "))}) /Producer (Materiel Hotel) >>`);
+  let out="%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";const offs=[];objs.forEach((o,i)=>{offs.push(out.length);out+=`${i+1} 0 obj\n${o}\nendobj\n`});
+  const xref=out.length;out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+offs.map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")+`trailer\n<< /Size ${objs.length+1} /Root ${cat} 0 R /Info ${inf} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const bytes=new Uint8Array(out.length);for(let i=0;i<out.length;i++)bytes[i]=out.charCodeAt(i)&255;return bytes;
+}
+
 /* ---------- Paramètres personnels (affichage) ---------- */
 const TAB_IC={dash:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
   articles:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
   trs:'<path d="M4 8h15"/><path d="M15 4l4 4-4 4"/><path d="M20 16H5"/><path d="M9 12l-4 4 4 4"/>',
   decl:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4"/><path d="M12 17.2v.3"/>',
   mvts:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+  inv:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 10l1.5 1.5L13 9"/><path d="M9 16h6"/>',
   params:'<path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-8h10v8"/><path d="M7 17h10"/>',
   prefs:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'};
 document.querySelectorAll("nav.tabs button").forEach(b=>{const p=TAB_IC[b.dataset.tab];if(p)b.insertAdjacentHTML("afterbegin",`<svg class="ti-ic" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`)});
@@ -1572,7 +1853,7 @@ function renderPrefs(b){
     ${tg("icons","Icônes dans les onglets","Petites icônes devant les noms des onglets")}
    </section>
    <section class="panel pf-sec"><h2>${ic('<path d="M5 3l14 9-14 9z"/>')}Au démarrage</h2>
-    <div class="pf-row"><span>Onglet ouvert au lancement</span>${sel("start",[["dernier","Dernier onglet utilisé"],["dash","Tableau de bord"],["articles","Articles"],["trs","Transferts"],["decl","Casses / Pertes"],["mvts","Mouvements"]])}</div>
+    <div class="pf-row"><span>Onglet ouvert au lancement</span>${sel("start",[["dernier","Dernier onglet utilisé"],["dash","Tableau de bord"],["articles","Articles"],["trs","Transferts"],["decl","Casses / Pertes"],["inv","Inventaires"],["mvts","Mouvements"]])}</div>
     <div class="pf-row"><span>Hôtel affiché</span>${sel("hotel",[["dernier","Dernier choix"],["ALL","Tous"],["NOVOTEL","NOVOTEL"],["IBIS","IBIS"]])}</div>
     <div class="pf-row"><span>Affichage des articles</span>${sel("artView",[["dernier","Dernier choix"],["cards","Fiches avec photos"],["table","Liste"]])}</div>
    </section>
