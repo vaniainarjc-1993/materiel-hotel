@@ -763,7 +763,7 @@ function renderToolbar(){
   const tb=$("#toolbar");const w=canWrite;
   if(ui.tab==="dash"){tb.innerHTML=w?`<div class="grow"></div>${canAdmin?`<button class="btn" id="tb-art">+ Article</button><button class="btn" id="tb-mv">+ Mouvement</button>`:""}<button class="btn" id="tb-dc">+ Casse / perte</button><button class="btn primary" id="tb-tr">⇄ Transfert</button>`:"";}
   else if(ui.tab==="articles"){
-    tb.innerHTML=`<div class="tb-line"><input type="search" id="tb-q" class="tb-search" placeholder="🔍 Rechercher par nom ou désignation de l'article, code…" value="${esc(ui.q)}">${canAdmin?`<button class="btn" id="tb-dup">🔍 Doublons</button><button class="btn primary" id="tb-art">+ Article</button>`:""}</div>
+    tb.innerHTML=`<div class="tb-line"><input type="search" id="tb-q" class="tb-search" placeholder="🔍 Rechercher par nom ou désignation de l'article, code…" value="${esc(ui.q)}">${canAdmin?`<button class="btn" id="tb-dup">🔍 Contrôle des doublons <span class="badge" id="dup-n" hidden></span></button><button class="btn primary" id="tb-art">+ Article</button>`:""}</div>
       <div class="tb-line"><details class="dd" id="dd-dep"><summary class="btn" aria-label="Filtrer par dépôt">Dépôts <span class="badge" id="dep-badge" hidden></span> <span aria-hidden="true">▾</span></summary><div class="dd-panel" id="dep-panel"></div></details>
       <select id="tb-g" class="tb-grp" aria-label="Groupe">${filterGroupOptions(ui.groupe)}</select>
       <div class="seg" role="group" aria-label="Photo">${[["","Tous"],["avec","Avec photo"],["sans","Sans photo"]].map(([k,l])=>`<button data-pf="${k}" aria-pressed="${(ui.photoF||"")===k}">${l} <span class="badge" id="pf-n-${k||"all"}"></span></button>`).join("")}</div>
@@ -859,6 +859,8 @@ function renderBody(){
   if($("#pf-n-all")){const base=artVis().filter(a=>depFilt(a)&&(!ui.groupe||a.groupeId===ui.groupe));const nw=base.filter(a=>a.photo&&(a.photo.asset||a.photo.data)).length;$("#pf-n-all").textContent=base.length;$("#pf-n-avec").textContent=nw;$("#pf-n-sans").textContent=base.length-nw}
   for(const[idn,dc]of[["#trs-n",false],["#dcl-n",true]]){const tn=$(idn);if(tn){const n=draftCount(dc);tn.hidden=!n;tn.textContent=n;tn.title=n+" brouillon(s) à valider"}}
   {const ivn=$("#inv-n");if(ivn){const n=invCount();ivn.hidden=!n;ivn.textContent=n;ivn.title=n+" inventaire(s) en cours"}}
+  {const dn=$("#dup-n");if(dn){const n=window.__dupN;dn.hidden=!n;dn.textContent=n||"";dn.title=n?n+" groupe(s) de doublons sûrs":""}}
+  if(canAdmin&&loaded.articles&&window.__dupSig!==S.articles.length+":"+(S.articles[0]?.maj||0)){window.__dupSig=S.articles.length+":"+(S.articles[0]?.maj||0);clearTimeout(window.__dupT);window.__dupT=setTimeout(()=>{try{const c=dupFind();window.__dupN=c.filter(x=>x.sur).length;window.__dupP=c.length-window.__dupN;scheduleRender()}catch(e){}},1500)}
   {const mn=$("#maj-n");if(mn){const off=!loaded.majstock||!!majToday();mn.hidden=off;mn.title=off?"":"Stock non mis à jour aujourd'hui"}}
   ({rec:renderRec,maj:renderMaj,dash:renderDash,articles:renderArticles,stock:renderArticles,trs:b=>renderTransferts(b,false),decl:renderDecl,inv:renderInv,mvts:renderMoves,params:renderParams,prefs:renderPrefs}[ui.tab]||renderDash)(b);
 }
@@ -905,7 +907,7 @@ function renderDash(b){
   const gRows=Object.entries(byG).sort((a,b)=>b[1]-a[1]);const gMax=Math.max(1,...gRows.map(r=>r[1]));
   const byD=deps.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return[d,q]}).sort((a,b)=>b[1]-a[1]);const dMax=Math.max(1,...byD.map(r=>r[1]));
   const wl=weeks.map(t=>{const d=new Date(t);return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")});
-  b.innerHTML=`${majBanner()}
+  b.innerHTML=`${majBanner()}${canAdmin&&(window.__dupN||window.__dupP)?`<div class="maj-banner" style="background:color-mix(in srgb,var(--warn) 12%,var(--surface));border:1px solid var(--warn)"><b>🔍 Doublons d'articles :</b> ${window.__dupN||0} groupe${(window.__dupN||0)>1?"s":""} sûr${(window.__dupN||0)>1?"s":""} et ${window.__dupP||0} à vérifier. <button class="btn sm" data-dup-go>Contrôler les doublons</button></div>`:""}
   <div class="kpis">
     <div class="kpi"><span class="eyebrow">Articles</span><b>${arts.length}</b><span class="sub">${S.groupes.length} groupes · ${deps.length} dépôts</span></div>
     <div class="kpi"><span class="eyebrow">Quantité en stock</span><b>${fmt(qtot)}</b><span class="sub">toutes unités confondues</span></div>
@@ -927,7 +929,7 @@ function renderDash(b){
   b.querySelectorAll("[data-art]").forEach(el=>el.onclick=()=>articleDetail(el.dataset.art));
   b.querySelectorAll("[data-dep]").forEach(el=>el.onclick=()=>{ui.deps=[el.dataset.dep];ui.tab="articles";ui.view="table";artLimit=120;saveUi();syncHeader();renderAll()});
   const s=$("#see-mv",b);if(s)s.onclick=e=>{e.preventDefault();ui.tab="mvts";saveUi();syncHeader();renderAll()};
-  bindMajBanner(b);
+  bindMajBanner(b);b.querySelectorAll("[data-dup-go]").forEach(x=>x.onclick=()=>dupTool());
 }
 function niceMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return(n<=1?1:n<=2?2:n<=5?5:10)*p}
 function axis(W,H,L,T,B,max,ticks=4){let s="";for(let i=0;i<=ticks;i++){const v=max*i/ticks,y=T+(H-T-B)*(1-i/ticks);s+=`<line x1="${L}" x2="${W-8}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${fmt(v)}</text>`}return s}
@@ -1901,64 +1903,74 @@ async function majShow(cur,box){
 }
 
 /* ===== D. Doublons d'articles (petites erreurs de saisie) : détection + fusion ===== */
-const DUP_STOP=new Set(["AVEC","POUR","REF","DES","LES","UNE","AUX","SUR","ET","DE","DU","LA","LE","EN","A","AU","L","D"]);
+const DUP_STOP=new Set(["AVEC","POUR","REF","DES","LES","AUX","SUR","ET","DE","DU","LA","LE","EN","A","AU","L","D"]);
 const DUP_SIZE=new Set(["PM","MM","GM","TPM","TGM","XS","XL","XXL"]);
-const DUP_SIGN=new Set(["SOUS","PERFORATED","PERFORE","PERFOREE","PERFORES","MINI","DOUBLE","DEMI","COUVERCLE","LID","SANS","WITHOUT","MOITIE"]);
+const DUP_SIGN=new Set(["SOUS","PERFORATED","PERFORE","PERFOREE","PERFORES","MINI","DOUBLE","DEMI","COUVERCLE","LID","SANS","WITHOUT","MOITIE","NON","SAC","FOND"]);
+const DUP_NUMW={UN:"1",UNE:"1",DEUX:"2",TROIS:"3",QUATRE:"4",CINQ:"5",SIX:"6",HUIT:"8",DIX:"10",DOUZE:"12"};
 function dupNorm(s){s=String(s||"").replace(/Œ/g,"OE").replace(/œ/g,"oe").normalize("NFKD").replace(/[̀-ͯ]/g,"").toUpperCase();
   s=s.replace(/[^A-Z0-9.,*]+/g," ").replace(/\*/g," X ").replace(/(\d),(?=\d)/g,"$1.").replace(/,/g," ").replace(/(\d)X(?=\d)/g,"$1 X ");
+  s=s.replace(/([A-Z]{4,})(?=\d)/g,"$1 ").replace(/(\d)(?=[A-Z]{4,})/g,"$1 ");
+  s=s.replace(/\b(UN|UNE|DEUX|TROIS|QUATRE|CINQ|SIX|HUIT|DIX|DOUZE)\b/g,w=>DUP_NUMW[w]);
   for(let i=0;i<3;i++)s=s.replace(/(\d) (\d)/g,"$1$2");return s.replace(/\s+/g," ").trim()}
 function dupIsCode(t){const dg=t.replace(/\D/g,"");if(/^[\d.]+$/.test(t))return dg.length>=5||(t.match(/\./g)||[]).length>=2;
+  if(/^\d{2,}[A-Z]{1,2}$/.test(t)&&!/^\d+(CM|MM|CL|ML|L|LT|KG|G|GR|W|V|M|P|PC|H)$/.test(t))return true;
   return /^[A-Z]{1,5}[\d.]+[A-Z0-9]*$/.test(t)&&dg.length>=3&&!/^\d+(CM|MM|CL|ML|L|LT|LTR|KG|G|GR|W|V|M|PCS|PC|P)$/.test(t)}
 function dupFeat(a){const n=dupNorm(a.nom),codes=new Set(),meas=[],words=new Set();
   for(const t of n.split(" ")){if(!t)continue;if(dupIsCode(t)){codes.add("T"+t.replace(/\./g,""));const dg=t.replace(/\D/g,"");if(dg.length>=5)codes.add("D"+dg)}
     else if(/\d/.test(t)){for(const x of t.match(/\d+(?:\.\d+)?/g)||[])meas.push(String(parseFloat(x)));const w=t.replace(/[\d.]+/g,"");if(DUP_SIZE.has(w))words.add(w)}
     else if((t.length>=3&&!DUP_STOP.has(t))||DUP_SIZE.has(t))words.add(t)}
-  const c=String(a.code||"").toUpperCase();if(!/^(GEN|ART)-/.test(c)){const dg=c.replace(/\D/g,"");if(dg.length>=5)codes.add("D"+dg)}
-  meas.sort();return{id:a.id,c:n.replace(/[^A-Z0-9]/g,""),codes,meas:meas.join(","),words}}
-function dupNear(x,y){if(x===y)return true;if(DUP_SIZE.has(x)||DUP_SIZE.has(y))return false;if(x.length>=4&&y.length>=4&&(x.startsWith(y)||y.startsWith(x)))return true;
+  const all=new Set(codes),c=String(a.code||"").toUpperCase();let cf="";if(!/^(GEN|ART)-/.test(c)){const dg=c.replace(/\D/g,"");if(dg.length>=5){all.add("D"+dg);cf=dg}}
+  meas.sort();const cc=n.replace(/[^A-Z0-9]/g,"");return{id:a.id,c:cc,codes,all,cf,meas:meas.join(","),words,lt:cc.replace(/\d/g,"")}}
+function dupNear(x,y){if(x===y)return true;{const[l,c]=x.length>y.length?[x,y]:[y,x];if(l.startsWith(c)&&/^(OUT|LESS|NON)$/.test(l.slice(c.length)))return false}if(DUP_SIZE.has(x)||DUP_SIZE.has(y))return false;if(x.length>=4&&y.length>=4&&(x.startsWith(y)||y.startsWith(x)))return true;
   if(Math.abs(x.length-y.length)>2||Math.min(x.length,y.length)<4)return false;return lcsLen(x,y)>=Math.max(x.length,y.length)-1}
 function dupCodeRel(ca,cb){for(const x of ca)for(const y of cb){if(x[0]!==y[0])continue;const a=x.slice(1),b=y.slice(1);if(a===b||(Math.min(a.length,b.length)>=4&&(a.startsWith(b)||b.startsWith(a))))return true}return false}
+function dupUnexpl(P,Q){const out=[];for(const x of P.words){if(Q.words.has(x))continue;if([...Q.words].some(y=>dupNear(x,y)))continue;if(!DUP_SIZE.has(x)&&x.length>=4&&Q.lt.includes(x))continue;out.push(x)}return out}
 function dupFind(){
-  const F=S.articles.map(dupFeat),idx=new Map();
-  F.forEach((f,i)=>{for(const w of f.words){let l=idx.get(w);if(!l)idx.set(w,l=[]);l.push(i)}});
+  const F=S.articles.map(dupFeat),idx=new Map(),add=(k,i)=>{let l=idx.get(k);if(!l)idx.set(k,l=[]);l.push(i)};
+  F.forEach((f,i)=>{for(const w of f.words)add("w"+w,i);if(f.lt.length>=6)add("p"+f.lt.slice(0,7),i);add("c"+f.c,i)});
   const pairs=[];
-  for(let i=0;i<F.length;i++){const a=F[i],cand=new Set();
-    for(const w of a.words){const l=idx.get(w);if(l.length<1500)for(const j of l)if(j>i)cand.add(j)}
-    for(const j of cand){const b=F[j];if(a.meas!==b.meas)continue;
-      const ua=[...a.words].filter(x=>!b.words.has(x)),ub=[...b.words].filter(x=>!a.words.has(x));
-      const ua2=ua.filter(x=>!ub.some(y=>dupNear(x,y))),ub2=ub.filter(y=>!ua.some(x=>dupNear(x,y)));
-      if(ua2.length&&ub2.length)continue;if([...ua2,...ub2].some(w=>DUP_SIGN.has(w)||DUP_SIZE.has(w)))continue;
-      let inter=0;for(const w of a.words)if(b.words.has(w))inter++;if(inter<Math.max(1,Math.min(a.words.size,b.words.size)-1))continue;
-      const rel=dupCodeRel(a.codes,b.codes);if(a.codes.size&&b.codes.size&&!rel)continue;
-      const r=a.c===b.c?1:200*lcsLen(a.c,b.c)/(a.c.length+b.c.length)/100;const extra=ua2.length+ub2.length;
-      if(rel&&r>=0.6)pairs.push({a:a.id,b:b.id,sur:true,r});else if(r>=0.9&&extra<=1)pairs.push({a:a.id,b:b.id,sur:false,r})}}
+  for(let i=0;i<F.length;i++){const a=F[i],cand=new Set(),keys=[...[...a.words].map(w=>"w"+w),"p"+a.lt.slice(0,7),"c"+a.c];
+    for(const k of keys){const l=idx.get(k);if(l&&l.length<1500)for(const j of l)if(j>i)cand.add(j)}
+    for(const j of cand){const b=F[j];
+      if(a.c===b.c){if(a.cf&&b.cf&&a.cf!==b.cf&&!dupCodeRel(a.codes,b.codes))pairs.push({a:a.id,b:b.id,sur:false,r:1,why:"Même nom, références différentes"});else pairs.push({a:a.id,b:b.id,sur:true,r:1,why:"Nom identique"});continue}
+      if(a.meas!==b.meas)continue;
+      const ua=dupUnexpl(a,b),ub=dupUnexpl(b,a);
+      if(ua.length&&ub.length)continue;if([...ua,...ub].some(w=>DUP_SIGN.has(w)||DUP_SIZE.has(w)))continue;
+      const sa=[...a.words].filter(w=>DUP_SIZE.has(w)).sort().join(),sb=[...b.words].filter(w=>DUP_SIZE.has(w)).sort().join();if(sa!==sb)continue;
+      const rel=dupCodeRel(a.all,b.all);if(a.codes.size&&b.codes.size&&!rel)continue;
+      const r=200*lcsLen(a.c,b.c)/(a.c.length+b.c.length)/100;const extra=ua.length+ub.length;
+      const ew=Math.max(1,Math.min(a.words.size,b.words.size));if(extra>Math.max(1,ew/3))continue;
+      if(rel&&r>=0.6)pairs.push({a:a.id,b:b.id,sur:true,r,why:"Même référence"});else if(r>=0.88&&extra<=1)pairs.push({a:a.id,b:b.id,sur:false,r,why:extra?"Nom très proche (un mot en plus)":"Nom très proche (faute de frappe, espaces)"})}}
   // groupes : liens « sûrs » d'abord, puis paires à vérifier
   const par=new Map(),fd=x=>{while(par.has(x)&&par.get(x)!==x)x=par.get(x);return x};
   for(const p of pairs.filter(p=>p.sur)){const x=fd(p.a),y=fd(p.b);if(x!==y)par.set(y,x);if(!par.has(x))par.set(x,x)}
-  const cl=new Map();for(const p of pairs.filter(p=>p.sur)){const k=fd(p.a);if(!cl.has(k))cl.set(k,{ids:new Set(),sur:true,r:1});const c=cl.get(k);c.ids.add(p.a);c.ids.add(p.b);c.r=Math.min(c.r,p.r)}
+  const cl=new Map();for(const p of pairs.filter(p=>p.sur)){const k=fd(p.a);if(!cl.has(k))cl.set(k,{ids:new Set(),sur:true,r:1,why:new Set()});const c=cl.get(k);c.ids.add(p.a);c.ids.add(p.b);c.r=Math.min(c.r,p.r);c.why.add(p.why)}
   const out=[...cl.values()];
-  for(const p of pairs.filter(p=>!p.sur)){if(par.has(p.a)&&par.has(p.b)&&fd(p.a)===fd(p.b))continue;out.push({ids:new Set([p.a,p.b]),sur:false,r:p.r})}
+  for(const p of pairs.filter(p=>!p.sur)){if(par.has(p.a)&&par.has(p.b)&&fd(p.a)===fd(p.b))continue;out.push({ids:new Set([p.a,p.b]),sur:false,r:p.r,why:new Set([p.why])})}
   const art=A(),tot=id=>{let t=0;for(const s of S.stock)if(s.articleId===id)t+=+s.qte||0;return t};
   const nmov=new Map();for(const m of S.mouvements)nmov.set(m.articleId,(nmov.get(m.articleId)||0)+1);
   return out.map((c,i)=>{const arts=[...c.ids].map(id=>art[id]).filter(Boolean).map(a=>({a,tot:tot(a.id),ph:!!(a.photo&&(a.photo.asset||a.photo.data)),xl:Array.isArray(a.nomsExcel)&&a.nomsExcel.length,imp:/IMPORT STOCK/.test(a.description||""),nm:nmov.get(a.id)||0}));
     const keep=arts.slice().sort((x,y)=>(y.ph-x.ph)||(x.imp-y.imp)||(y.nm-x.nm)||((x.a.cree||0)-(y.a.cree||0)))[0];
     const named=arts.slice().sort((x,y)=>((y.xl?1:0)-(x.xl?1:0))||((y.tot?1:0)-(x.tot?1:0))||(y.tot-x.tot))[0];
-    return{k:i,arts,sur:c.sur,r:c.r,keep:keep?.a.id,nom:(named||keep)?.a.nom||"",on:c.sur}}).filter(c=>c.arts.length>1).sort((x,y)=>(y.sur-x.sur)||x.nom.localeCompare(y.nom))}
+    return{k:i,arts,sur:c.sur,r:c.r,why:[...(c.why||[])].join(" + "),keep:keep?.a.id,nom:(named||keep)?.a.nom||"",on:c.sur}}).filter(c=>c.arts.length>1).sort((x,y)=>(y.sur-x.sur)||x.nom.localeCompare(y.nom))}
 
 function dupTool(){
   if(!canAdmin){toast("Réservé à l'administrateur.");return}
   const m=openModal(`<header><h2>Doublons d'articles</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb"><p class="hint" style="margin:0;text-transform:none">Recherche des articles saisis deux fois avec une petite différence (espace, « * » au lieu de « x », référence tronquée, faute de frappe…). Les mesures (cm, litres, tailles PM/GM…) doivent être identiques et les références compatibles. Pour chaque groupe : choisissez l'article à <b>garder</b> (par défaut celui qui a une photo) et le <b>nom final</b> (par défaut celui du fichier Excel). La fusion additionne les stocks dépôt par dépôt, rattache l'historique (mouvements, transferts, inventaires) à l'article gardé, mémorise tous les noms pour les prochains imports Excel, puis supprime le doublon.</p>
     <div id="dp-res"><p class="hint">Analyse en cours…</p></div><div class="err"></div></div>
-   <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="dp-go" disabled>Fusionner</button></footer>`,{wide:"xl"});
+   <footer><button class="btn" id="dp-x">⬇ Exporter l'analyse (Excel)</button><div style="flex:1"></div><button class="btn" data-close>Fermer</button><button class="btn primary" id="dp-go" disabled>Fusionner</button></footer>`,{wide:"xl"});
   let C=[],tab="sur",q="";
-  setTimeout(()=>{C=dupFind();draw()},30);
+  setTimeout(()=>{C=dupFind();window.__dupN=C.filter(c=>c.sur).length;window.__dupP=C.length-window.__dupN;draw()},30);
+  $("#dp-x",m).onclick=async()=>{try{await loadLib("xlsx");const g=G(),dm=D(),rows=[];C.forEach((c,i)=>c.arts.forEach(x=>rows.push({"Groupe n°":i+1,"Niveau":c.sur?"Sûr":"À vérifier","Motif":c.why||"","Ressemblance %":Math.round(c.r*100),"Proposition":x.a.id===c.keep?"GARDER":"Fusionner","Code":x.a.code||"","Article":x.a.nom,"Groupe d'article":g[x.a.groupeId]?.nom||"","Photo":x.ph?"Oui":"Non","Stock total":x.tot,"Dépôts":S.stock.filter(st=>st.articleId===x.a.id&&+st.qte).map(st=>(dm[st.depotId]?.nom||"")+" : "+st.qte).join(" ; "),"Nom final proposé":c.nom})));
+    const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[{wch:9},{wch:11},{wch:34},{wch:12},{wch:12},{wch:18},{wch:60},{wch:26},{wch:7},{wch:10},{wch:50},{wch:60}];XLSX.utils.book_append_sheet(wb,ws,"Doublons");
+    XLSX.writeFile(wb,"ANALYSE DOUBLONS ARTICLES "+today()+".xlsx")}catch(x){toast((x&&x.message)||"Export impossible")}};
   function draw(){
     const dm=D(),g=G(),u=U(),box=$("#dp-res",m),ns=C.filter(c=>c.sur).length,np=C.length-ns;
     const list=C.filter(c=>(tab==="sur")===c.sur&&(!q||c.arts.some(x=>(x.a.nom+" "+(x.a.code||"")).toLowerCase().includes(q.toLowerCase()))));
     box.innerHTML=`<div class="trx-filters"><div class="seg" role="group"><button data-tb="sur" aria-pressed="${tab==="sur"}">Doublons sûrs (${ns})</button><button data-tb="prob" aria-pressed="${tab==="prob"}">À vérifier (${np})</button></div><input type="search" id="dp-q" placeholder="Filtrer…" value="${esc(q)}" style="max-width:260px"><button class="btn sm" id="dp-all">Tout cocher</button><button class="btn sm ghost" id="dp-none">Tout décocher</button><span class="hint">${tab==="sur"?"Même référence (ou référence tronquée) et mêmes mesures : cochés par défaut.":"Noms très proches sans référence commune : vérifiez avec les photos avant de cocher."}</span></div>
      <div style="max-height:58vh;overflow:auto;display:flex;flex-direction:column;gap:10px;margin-top:8px">${list.length?list.slice(0,600).map(c=>`<div class="panel" style="padding:10px 12px;${c.on?"border-color:var(--accent)":""}">
-       <label class="check" style="font-weight:700"><input type="checkbox" data-on="${c.k}" ${c.on?"checked":""}> Fusionner ces ${c.arts.length} articles <span class="hint" style="font-weight:400">· ressemblance ${Math.round(c.r*100)} %</span></label>
+       <label class="check" style="font-weight:700"><input type="checkbox" data-on="${c.k}" ${c.on?"checked":""}> Fusionner ces ${c.arts.length} articles <span class="hint" style="font-weight:400">· ${esc(c.why||"")} · ressemblance ${Math.round(c.r*100)} %</span></label>
        <div class="tablewrap" style="margin-top:6px"><table><thead><tr><th>Garder</th><th></th><th>Article</th><th>Groupe</th><th class="r">Stock</th><th>Dépôts</th></tr></thead><tbody>${c.arts.map(x=>{const s=photoSrc(x.a);const deps=S.stock.filter(st=>st.articleId===x.a.id&&+st.qte).map(st=>`${esc(dm[st.depotId]?.nom||"")} : <b>${fmt(st.qte)}</b>`).join(" · ");return`<tr><td><input type="radio" name="kp${c.k}" data-kp="${c.k}" value="${x.a.id}" ${c.keep===x.a.id?"checked":""}></td><td>${s?`<img class="thumb" src="${esc(s)}" alt="" loading="lazy">`:`<span class="thumb"></span>`}</td><td><b>${esc(x.a.nom)}</b><div class="hint mono">${esc(x.a.code||"")}${x.imp?" · créé par import":""}${x.nm?` · ${x.nm} mvt`:""}</div></td><td class="hint">${esc(g[x.a.groupeId]?.nom||"")}</td><td class="r num"><b>${fmt(x.tot)}</b> <span class="hint">${esc(u[x.a.uniteId]?.abrev||"")}</span></td><td class="hint">${deps||"—"}</td></tr>`}).join("")}</tbody></table></div>
        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><span class="hint">Nom final :</span><select data-nm="${c.k}" style="max-width:560px">${[...new Set(c.arts.map(x=>x.a.nom))].map(n=>`<option ${n===c.nom?"selected":""}>${esc(n)}</option>`).join("")}</select></div></div>`).join(""):`<p class="lock">✓ Aucun doublon dans cette catégorie.</p>`}</div>`;
     box.querySelectorAll("[data-tb]").forEach(b=>b.onclick=()=>{tab=b.dataset.tb;draw()});
