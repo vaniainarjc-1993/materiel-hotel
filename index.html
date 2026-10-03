@@ -1580,13 +1580,13 @@ function lcsLen(a,b){if(a.length<b.length)[a,b]=[b,a];let prev=new Uint16Array(b
 const tsr=(a,b)=>{const x=a.split(" ").sort().join(" "),y=b.split(" ").sort().join(" ");return x.length+y.length?200*lcsLen(x,y)/(x.length+y.length):100};
 /* correspondances déjà utilisées lors de l'import initial (noms Excel différents du nom de l'article) */
 const STOCK_ALIAS={"ASSIETTE CARREE 110 SMB":"g731","NATURE FLAMBE TROLLEY GAS X1":"g1455","BOL A CEREALE EN CERAMIQUE 10 CL HP":"g251","BOUILLOIRE 2 5L WKTS251521IR":"g327","CUILLERE DE TABLE EOLE REF C25500B000325 AMEFA":"g1847","FOURCHETTE DE TABLE EOLE REF C25500B000320 AMEFA":"g1416","THEIERE 6 TASSES CLOCHE DGN 211989":"g1114","TASSE A CAFE 10CL DGN 227828":"g1330","TASSE A THE 25 CL IC DGN 227829":"g1331","VERRE COCKTAIL 20CL TRANSP":"g1376","MACHINE A PATES OZT 9823 00022 00":"g1451","FER A SEC 1200W SEMELLE ANTIADHESIVE WESTPOINT WIRC1217R":"g1742","PLATEAU REPAS EN INOX":"g389","COUPE RONDE 24CM 136535":"g1621","BOL GOURMET 30CL VERT DGN 230957":"g196","MINI BOL GOURMET 7CL ARGILE VERT DGN 230956":"g195","SALAM NEW BLANC CREMIER 15CL 1C DGN 187277":"g1116","SMOOS BLANC TASSE LUNGO 20CL DGN 207767":"g809","SOUCOUPE A CAFE RONDE 15C M DGN 161025":"g660","SOUCOUPE A THE 18CM DGN 161028":"g661","TASSE A CAFE 11CL DGN 208948":"g808","THEIERE 8 TASSES CLOCHE DGN 211990":"g1113","MIROIR CUILLERE A SOUPE ANGLAISE DGN112695":"g484","BOUCHON PORCEL CLOCHE EN VERRE DGN 206504":"g199","CLOCHE 15CM DGN 182301":"g1125","CLOCHE 24CM DGN 182614":"g1124","TASSE A CAFE 10CL 1C FRANCE69111000 227828":"g1330","TASSE A THE 25CL FRANCE 69111000 DGN 227829":"g1331","BOCAL THERMIQUE VERRE 1 2 GB 91":"g104","BOITE GN 1 2 H 4 5CM BOIS DE CHENE HUILE VALE":"g1087","GOURMET BLEU BOL 16CM 100CL":"g211","GOURMET CARBONE BOL GOURMET 30CL IC":"g208","SALADIER BLANCHE MATTE 12 CM HP":"g252","SALADIER BLANCHE MATTE 17 CM HP":"g248","CASSEROLE BUYER INOX 16 18 CM":"g876","COCOTTE GOURMET 50CL VERT DGN 230958":"g197","MOULE PATISSERIE SILICONE COQUILLAGE":"g142","CUILLERE DE SERVICE OU A SALADE CLASSIC 8 6 CM":"g528","CHAISE HAUTE NAYA CROISE 80CM AVEC COUSIN PLAT BEIGE":"g1735","CHAISE HAUTE NAYA 65CM AVEC COUSIN PLAT ROUILLE":"g1734","CHARIOT DE NETTOYAGE EQUIPIER PORTIMPEX":"g1551","PANNEAU DE SIGNALISATION CAUTION WET FLOOR":"g1552","INFUSEUR 6 8 TASSES DGN 147993":"g779","COCOTTE GOURMET 50CL ROSE DGN 230910":"g193","MOULE CANNELES SILICONE":"g152","BOUTEILLE FRAICHEUR":"g454","BLENDER TAURUS 912443000":"g1276"};
-function buildMatcher(){
-  const codeIdx=new Map(),byS=new Map(),byFull=new Map(),tokIdx=new Map(),full=new Map(),push=(m,k,v)=>{let a=m.get(k);if(!a)m.set(k,a=[]);a.push(v)};
-  for(const a of S.articles){const c=nrm(a.code).replace(/ /g,"");if(c.length>=5&&!/^(GEN|ART)/.test(c))push(codeIdx,c,a.id);
+function buildMatcher(lock){
+  const xlN=new Map(),codeIdx=new Map(),byS=new Map(),byFull=new Map(),tokIdx=new Map(),full=new Map(),push=(m,k,v)=>{let a=m.get(k);if(!a)m.set(k,a=[]);a.push(v)};
+  for(const a of S.articles){if(Array.isArray(a.nomsExcel)&&a.nomsExcel.length){for(const x of a.nomsExcel)push(xlN,nrm(x),a.id);if(lock)continue}const c=nrm(a.code).replace(/ /g,"");if(c.length>=5&&!/^(GEN|ART)/.test(c))push(codeIdx,c,a.id);
     const f=nrm(a.nom);full.set(a.id,f+" "+nrm(a.code));push(byFull,f,a.id);const s=stripN(f);push(byS,s,a.id);
     for(const t of new Set(s.split(" ")))if(t.length>=3){let st=tokIdx.get(t);if(!st)tokIdx.set(t,st=new Set());st.add(s)}}
   const ids=new Set(S.articles.map(a=>a.id));
-  const fn=(name,code)=>{const n=nrm(name);if(!n)return null;if(STOCK_ALIAS[n]&&ids.has(STOCK_ALIAS[n]))return{aid:STOCK_ALIAS[n],how:"correspondance de l'import"};if(byFull.has(n))return{aid:byFull.get(n)[0],how:"nom identique"};
+  const fn=(name,code)=>{const n=nrm(name);if(!n)return null;if(xlN.get(n)?.length)return{aid:xlN.get(n)[0],how:"nom Excel enregistré"};if(STOCK_ALIAS[n]&&ids.has(STOCK_ALIAS[n]))return{aid:STOCK_ALIAS[n],how:"correspondance de l'import"};if(byFull.has(n))return{aid:byFull.get(n)[0],how:"nom identique"};
     const cc=nrm(code).replace(/ /g,"");if(cc.length>=5&&codeIdx.get(cc)?.length===1)return{aid:codeIdx.get(cc)[0],how:"code"};
     for(const t of n.split(" "))if(t.length>=5&&codeIdx.get(t)?.length===1)return{aid:codeIdx.get(t)[0],how:"code"};
     const s=stripN(n);if(byS.has(s))return{aid:byS.get(s)[0],how:"nom"};
@@ -1625,26 +1625,31 @@ function stockCheck(){
       R=analyseStock(aoa.slice(hi+1),C);drawStock();st.textContent=f.name;
     }catch(x){st.textContent="";err.textContent=(x&&x.message)||String(x)}};
   function analyseStock(rows,C){
-    const dm=depByName(),match=buildMatcher(),agg=new Map(),unk=new Map(),mm=new Map();
+    const dm=depByName(),match=buildMatcher(true),agg=new Map(),unk=new Map(),mm=new Map();
     for(const r of rows){if(!r)continue;const dn=String(r[C.dep]??"").trim(),an=String(r[C.art]??"").trim();if(!dn||!an)continue;
       const q=+String(r[C.q]??0).replace(",",".")||0,dk=nrm(dn);const did=dm.get(dk);if(!did){const u=unk.get(dk)||{nom:dn.replace(/\s+/g," ").toUpperCase(),n:0,q:0};u.n++;u.q+=q;unk.set(dk,u)}
       const key=nrm(an);let a=agg.get(key);if(!a){a={nom:an.replace(/\s+/g," ").trim().toUpperCase(),grp:{},num:"",deps:new Map()};agg.set(key,a)}
       const g=String(r[C.grp]??"").trim();if(g)a.grp[g]=(a.grp[g]||0)+1;if(!a.num&&C.num>=0&&r[C.num]!=null&&String(r[C.num]).trim())a.num=String(r[C.num]).trim();
       a.deps.set(dk,{dn,did,q:(a.deps.get(dk)?.q||0)+q})}
-    const ecarts=[],creer=[],multi=new Map(),pairs=new Map();let ok=0,nLines=0;
+    const ecarts=[],creer=[],multi=new Map(),pairs=new Map(),prot=new Set(),protL=new Map(),xq=new Map(),howM=new Map();let ok=0,nLines=0;
+    for(const mv of S.mouvements)if(mv.type==="entree"&&/RECEPTION/.test(nrm(mv.note||"")))prot.add(mv.articleId);
     for(const[k,a]of agg){const hit=match(a.nom,a.num);a.grpName=Object.entries(a.grp).sort((x,y)=>y[1]-x[1])[0]?.[0]||"AUTRES MATERIELS";
-      if(hit){(multi.get(hit.aid)||multi.set(hit.aid,[]).get(hit.aid)).push(a.nom);
+      if(hit&&prot.has(hit.aid)){(protL.get(hit.aid)||protL.set(hit.aid,[]).get(hit.aid)).push(a.nom);continue}
+      if(hit){(multi.get(hit.aid)||multi.set(hit.aid,[]).get(hit.aid)).push(a.nom);howM.set(hit.aid,hit.how);{let t=0;for(const v of a.deps.values())t+=v.q;xq.set(a.nom,(xq.get(a.nom)||0)+t)}
         for(const[dk,v]of a.deps){nLines++;if(!v.did)continue;const pk=hit.aid+"__"+v.did;const pr=pairs.get(pk)||{aid:hit.aid,did:v.did,xl:0,names:[],how:hit.how};pr.xl+=v.q;if(!pr.names.includes(a.nom))pr.names.push(a.nom);pairs.set(pk,pr)}}
       else{let tot=0,nz=0;for(const v of a.deps.values()){tot+=v.q;if(v.q)nz++}creer.push({...a,tot,nz,on:true})}}
     for(const pr of pairs.values()){const cur=qty(pr.aid,pr.did);if(Math.abs(cur-pr.xl)>1e-9)ecarts.push({aid:pr.aid,how:pr.how,xnom:pr.names.join(" + "),did:pr.did,app:cur,xl:pr.xl,on:false});else ok++}
-    const merged=[...multi.entries()].filter(([,v])=>v.length>1);
-    return{ecarts,creer,unk:[...unk.values()],ok,nLines,merged,withZero:true,tab:"ec",fdep:""};
+    const merged=[...multi.entries()].filter(([,v])=>v.length>1),art=A(),renames=[];
+    for(const[aid,ns]of multi){const ar=art[aid];if(!ar)continue;const opts=[...new Set(ns)].sort((x,y)=>(xq.get(y)||0)-(xq.get(x)||0));const cur=String(ar.nom||"");
+      if(opts.includes(cur.replace(/\s+/g," ").trim()))continue;renames.push({aid,cur,opts,nom:opts[0],how:howM.get(aid)||"",on:true})}
+    renames.sort((x,y)=>x.cur.localeCompare(y.cur));
+    return{ecarts,creer,unk:[...unk.values()],ok,nLines,merged,renames,prot:[...protL.entries()],withZero:true,tab:"ec",fdep:""};
   }
   function drawStock(){
     const dm=D(),a=A(),box=$("#sc-res",m),cz=R.creer.filter(c=>R.withZero||c.nz),selE=R.ecarts.filter(e=>e.on).length,selC=cz.filter(c=>c.on).length,selD=R.unk.filter(u=>u.on).length;
     const ecs=R.ecarts.filter(e=>!R.fdep||e.did===R.fdep);
     box.innerHTML=`<div class="kpis iv-kpis"><div class="kpi"><span class="eyebrow">Lignes conformes</span><b class="iv-good">${R.ok}</b><span class="sub">même quantité que l'Excel</span></div><div class="kpi ${R.ecarts.length?"alert":""}"><span class="eyebrow">Écarts</span><b>${R.ecarts.length}</b><span class="sub">article / dépôt différent</span></div><div class="kpi"><span class="eyebrow">Articles à créer</span><b>${R.creer.length}</b><span class="sub">${R.creer.filter(c=>c.nz).length} avec stock · ${R.creer.filter(c=>!c.nz).length} à 0</span></div><div class="kpi ${R.unk.length?"alert":""}"><span class="eyebrow">Dépôts inconnus</span><b>${R.unk.length}</b><span class="sub">${R.unk.map(u=>esc(u.nom)).join(", ")||"aucun"}</span></div></div>
-     <div class="seg" role="group" style="align-self:flex-start;flex-wrap:wrap"><button data-tab="ec" aria-pressed="${R.tab==="ec"}">Écarts (${R.ecarts.length})</button><button data-tab="cr" aria-pressed="${R.tab==="cr"}">Articles à créer (${cz.length})</button><button data-tab="dp" aria-pressed="${R.tab==="dp"}">Dépôts inconnus (${R.unk.length})</button>${R.merged.length?`<button data-tab="mg" aria-pressed="${R.tab==="mg"}">Regroupements (${R.merged.length})</button>`:""}</div>
+     <div class="seg" role="group" style="align-self:flex-start;flex-wrap:wrap"><button data-tab="ec" aria-pressed="${R.tab==="ec"}">Écarts (${R.ecarts.length})</button><button data-tab="cr" aria-pressed="${R.tab==="cr"}">Articles à créer (${cz.length})</button><button data-tab="nm" aria-pressed="${R.tab==="nm"}">Noms à aligner (${R.renames.length})</button><button data-tab="dp" aria-pressed="${R.tab==="dp"}">Dépôts inconnus (${R.unk.length})</button>${R.prot.length?`<button data-tab="pr" aria-pressed="${R.tab==="pr"}">Hors Excel protégés (${R.prot.length})</button>`:""}${R.merged.length?`<button data-tab="mg" aria-pressed="${R.tab==="mg"}">Regroupements (${R.merged.length})</button>`:""}</div>
      <div id="sc-tab"></div>`;
     const t=$("#sc-tab",box);
     if(R.tab==="ec"){const deps=[...new Set(R.ecarts.map(e=>e.did))];
@@ -1660,13 +1665,20 @@ function stockCheck(){
       $("#sc-z",t).onchange=e=>{R.withZero=e.target.checked;drawStock()};
       $("#sc-call",t).onclick=()=>{cz.forEach(c=>c.on=true);drawStock()};$("#sc-cnone",t).onclick=()=>{cz.forEach(c=>c.on=false);drawStock()};
       t.querySelectorAll("[data-cr]").forEach(c=>c.onchange=()=>{R.creer[+c.dataset.cr].on=c.checked;upd()})}
+    else if(R.tab==="nm"){const selN=R.renames.filter(r=>r.on).length;
+      t.innerHTML=R.renames.length?`<div class="trx-filters"><button class="btn sm" id="sc-nall">Tout cocher</button><button class="btn sm ghost" id="sc-nnone">Tout décocher</button><span class="hint">${selN} article${selN>1?"s":""} prendra${selN>1?"ont":""} le nom de l'Excel (code, photo, stock et historique inchangés)</span></div>
+       <div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th></th><th>Nom actuel (appli)</th><th>Nouveau nom (Excel)</th><th>Reconnu par</th></tr></thead><tbody>${R.renames.slice(0,4000).map((r,i)=>{const ar=a[r.aid],s=photoSrc(ar);return`<tr><td><input type="checkbox" data-nm="${i}" ${r.on?"checked":""}></td><td><div class="artcell">${s?`<img class="thumb" src="${esc(s)}" alt="" loading="lazy">`:`<span class="thumb"></span>`}<div><b>${esc(r.cur)}</b><div class="hint mono">${esc(ar?.code||"")}</div></div></div></td><td>${r.opts.length>1?`<select data-nms="${i}" style="max-width:420px">${r.opts.map(o=>`<option ${o===r.nom?"selected":""}>${esc(o)}</option>`).join("")}</select><div class="hint">${r.opts.length} noms dans l'Excel pour cet article</div>`:`<b>${esc(r.nom)}</b>`}</td><td class="hint">${esc(r.how)}</td></tr>`}).join("")}</tbody></table></div>`:`<p class="lock">✓ Tous les articles reconnus portent déjà le nom de l'Excel.</p>`;
+      $("#sc-nall",t)&&($("#sc-nall",t).onclick=()=>{R.renames.forEach(r=>r.on=true);drawStock()});$("#sc-nnone",t)&&($("#sc-nnone",t).onclick=()=>{R.renames.forEach(r=>r.on=false);drawStock()});
+      t.querySelectorAll("[data-nm]").forEach(c=>c.onchange=()=>{R.renames[+c.dataset.nm].on=c.checked;upd()});
+      t.querySelectorAll("[data-nms]").forEach(c=>c.onchange=()=>{R.renames[+c.dataset.nms].nom=c.value})}
+    else if(R.tab==="pr"){t.innerHTML=`<p class="lock" style="margin:0">Ces articles proviennent de réceptions fournisseur (factures PDF/Excel) : leur nom et leur stock ne sont pas modifiés par le contrôle Excel, et les lignes Excel correspondantes ne créent pas de doublon.</p><div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Article (appli)</th><th>Nom(s) dans l'Excel</th></tr></thead><tbody>${R.prot.map(([aid,ns])=>`<tr><td><b>${esc(a[aid]?.nom||"")}</b></td><td class="hint">${ns.map(esc).join("<br>")}</td></tr>`).join("")}</tbody></table></div>`}
     else if(R.tab==="dp"){t.innerHTML=R.unk.length?`<p class="hint" style="margin:0">Ces dépôts figurent dans l'Excel mais pas dans l'appli. Cochez-les pour les créer (sinon leurs lignes sont ignorées).</p><div class="list">${R.unk.map((u,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-dp="${i}" ${u.on?"checked":""}><div class="t"><b>${esc(u.nom)}</b><span>${u.n} lignes · ${fmt(u.q)} unités · hôtel : ${hotelOf(u.nom)==="LES2"?"commun":hotelOf(u.nom)}</span></div></label>`).join("")}</div>`:`<p class="lock">✓ Tous les dépôts de l'Excel existent dans l'appli.</p>`;
       t.querySelectorAll("[data-dp]").forEach(c=>c.onchange=()=>{R.unk[+c.dataset.dp].on=c.checked;upd()})}
     else{t.innerHTML=`<p class="hint" style="margin:0">Plusieurs noms de l'Excel ont été reconnus comme un même article de l'appli. Vérifiez qu'il s'agit bien du même article.</p><div class="tablewrap"><table><thead><tr><th>Article (appli)</th><th>Noms dans l'Excel</th></tr></thead><tbody>${R.merged.map(([aid,ns])=>`<tr><td><b>${esc(a[aid]?.nom||"")}</b></td><td class="hint">${ns.map(esc).join("<br>")}</td></tr>`).join("")}</tbody></table></div>`}
     box.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{R.tab=b.dataset.tab;drawStock()});
     upd();
   }
-  function upd(){const cz=R.creer.filter(c=>(R.withZero||c.nz)&&c.on).length,e=R.ecarts.filter(x=>x.on).length,d=R.unk.filter(u=>u.on).length;const b=$("#sc-go",m);b.disabled=!(cz||e||d);b.textContent=`Appliquer : ${cz} création${cz>1?"s":""} · ${e} correction${e>1?"s":""}${d?` · ${d} dépôt${d>1?"s":""}`:""}`}
+  function upd(){const cz=R.creer.filter(c=>(R.withZero||c.nz)&&c.on).length,e=R.ecarts.filter(x=>x.on).length,d=R.unk.filter(u=>u.on).length,n=R.renames.filter(r=>r.on).length;const b=$("#sc-go",m);b.disabled=!(cz||e||d||n);b.textContent=`Appliquer : ${cz} création${cz>1?"s":""} · ${n} nom${n>1?"s":""} · ${e} correction${e>1?"s":""}${d?` · ${d} dépôt${d>1?"s":""}`:""}`}
   $("#sc-go",m).onclick=()=>{const b=$("#sc-go",m);confirmInline(b,"Confirmer l'application ?",()=>guard(m,async()=>{
     const upd={},now=Date.now(),dm=depByName(),newDep={};
     for(const u of R.unk.filter(u=>u.on)){let id=slug(u.nom);while(S.depots.some(d=>d.id===id))id+="-2";upd["data/depots/"+id]={nom:u.nom,hotel:hotelOf(u.nom),emplacement:""};newDep[nrm(u.nom)]=id;dm.set(nrm(u.nom),id)}
@@ -1676,10 +1688,11 @@ function stockCheck(){
       const hs=new Set(ds.map(x=>D()[x.did]?.hotel||(Object.values(newDep).includes(x.did)?hotelOf(x.did):"LES2")).filter(h=>h!=="LES2"));
       upd["data/articles/"+id]={code:c.num?String(c.num).toUpperCase():nextArtCode(),nom:c.nom,groupeId:gids[nrm(c.grpName)]||"",uniteId:S.unites.some(u=>u.id==="pce")?"pce":(S.unites[0]?.id||""),hotel:hs.size===1?[...hs][0]:"LES2",seuil:0,reference:"",description:"IMPORT STOCKS DISPO",depotDefaut:ds[0]?.did||"",cree:now,maj:now,par:myId||null};nA++;
       for(const x of ds)if(x.q){upd["data/stock/"+id+"__"+x.did]={articleId:id,depotId:x.did,qte:x.q,maj:now,source:"STOCKS DISPO"};nS++}}
+    const rns=R.renames.filter(r=>r.on&&A()[r.aid]);for(const r of rns){upd["data/articles/"+r.aid+"/nom"]=r.nom;upd["data/articles/"+r.aid+"/nomsExcel"]=r.opts;upd["data/articles/"+r.aid+"/maj"]=now}
     b.textContent="Enregistrement…";await batchWrite(upd,(i,n)=>{b.textContent=`Enregistrement… ${i} / ${n}`});
     const ecs=R.ecarts.filter(e=>e.on);let k=0;
     for(const e of ecs){k++;b.textContent=`Corrections… ${k} / ${ecs.length}`;await recordMove({type:"inventaire",articleId:e.aid,depotId:e.did,qte:e.xl,date:today(),note:"ALIGNEMENT SUR ETAT DE STOCK EXCEL"})}
-    closeModal();toast(`Terminé : ${nA} article${nA>1?"s":""} créé${nA>1?"s":""} (${nS} stocks), ${ecs.length} correction${ecs.length>1?"s":""}`);
+    closeModal();toast(`Terminé : ${nA} article${nA>1?"s":""} créé${nA>1?"s":""} (${nS} stocks), ${rns.length} nom${rns.length>1?"s":""} aligné${rns.length>1?"s":""}, ${ecs.length} correction${ecs.length>1?"s":""}`);
   }))};
 }
 
