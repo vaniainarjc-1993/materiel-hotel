@@ -239,6 +239,17 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--
 .tline .x{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px;border-radius:6px}.tline .x:hover{color:var(--crit);background:var(--crit-bg)}
 .tabn{display:inline-block;background:var(--warn);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;font-weight:700;line-height:17px;margin-left:3px;vertical-align:1px}
 .tabn[hidden]{display:none}
+.tabn.bad{background:var(--crit)}
+.maj-banner{border-radius:12px;padding:12px 16px;margin:0 0 16px;font-size:13.5px;line-height:1.5;display:block}
+.maj-banner .btn{margin-left:6px;vertical-align:middle}
+.maj-banner a{color:inherit;text-decoration:underline;margin-left:6px}
+.maj-banner.bad{background:color-mix(in srgb,var(--crit) 12%,var(--surface));border:1.5px solid var(--crit);color:var(--crit)}
+.maj-banner.ok{background:color-mix(in srgb,var(--ok) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--ok) 45%,transparent);color:var(--ink)}
+.maj-banner.ok b:first-child{color:var(--ok)}
+.grid-maj{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.grid-maj{grid-template-columns:minmax(0,1fr)}}
+.grid-maj .li.sel{background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:8px;padding-left:8px}
+.grid-maj .li .t{display:flex;flex-direction:column;min-width:0}
 @media (max-width:480px){.trx-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.tcard{padding:4px}.tcard .nm{font-size:10.5px}.tcard .cd{display:none}.tcard .okm{width:22px;height:22px;top:6px;right:6px}.tline{grid-template-columns:56px minmax(0,1fr) auto}.tline .im{width:56px;height:56px}}
 .trlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .trcard{display:flex;flex-direction:column;gap:8px;text-align:left;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:12px;padding:12px 14px;cursor:pointer;min-width:0}
@@ -601,6 +612,7 @@ onAuthStateChanged(auth,async u=>{
     </div>
     <nav class="tabs" role="tablist">
       <button data-tab="dash" aria-selected="true">Tableau de bord</button>
+      <button data-tab="maj" aria-selected="false">MAJ stock <span class="tabn bad" id="maj-n" hidden>!</span></button>
       <button data-tab="articles" aria-selected="false">Articles</button>
       <button data-tab="trs" aria-selected="false">Transferts <span class="tabn" id="trs-n" hidden></span></button>
       <button data-tab="decl" aria-selected="false">Casses / Pertes <span class="tabn" id="dcl-n" hidden></span></button>
@@ -621,7 +633,7 @@ onAuthStateChanged(auth,async u=>{
 <script>
 const HOTELS=["NOVOTEL","IBIS"];
 const GROUP_COLORS=["#0e5a53","#22508f","#b3332b","#a8711f","#6b4fa0","#2f7d4f","#c25e8a","#4f6d7a","#8a6d3b","#1f8a99"];
-const S={groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[],inventaires:[]};
+const S={groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[],inventaires:[],majstock:[]};
 const loaded={};
 let db=null,user=null,assets=null,canWrite=true,canAdmin=false,myId=null;
 const names={};
@@ -687,6 +699,7 @@ function nextCode(){let m=0;for(const a of S.articles){const r=/^ART-(\d+)$/.exe
   sub("mouvements",db.collection("mouvements").orderBy("ts","desc").limit(1000));
   sub("transferts",db.collection("transferts"));
   sub("inventaires",db.collection("inventaires"));
+  sub("majstock",db.collection("majstock").orderBy("ts","desc").limit(120));
 })();
 function setConn(ok,txt){const c=$("#conn");c.className="status "+(ok?"on":"off");c.querySelector("span").textContent=txt}
 let rq=0;function scheduleRender(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;if(ui.tab==="prefs"&&document.getElementById("pf-st"))return;renderBody()})}
@@ -734,6 +747,8 @@ function renderToolbar(){
     tb.innerHTML=`<input type="search" id="tb-dq" class="grow" placeholder="Rechercher N°, article, dépôt…" value="${esc(ui.dcQ)}">
       <div class="seg" role="group" aria-label="Statut">${[["","Tous"],["brouillon","Brouillons"],["valide","Validés"]].map(([k,l])=>`<button data-dst="${k}" aria-pressed="${ui.dcSt===k}">${l}</button>`).join("")}</div>
       ${w?`<button class="btn primary" id="tb-dc">+ Nouvelle déclaration</button>`:""}`;
+  } else if(ui.tab==="maj"){
+    tb.innerHTML=`<div class="grow"></div>${canAdmin?`<button class="btn primary" id="tb-maj">📥 Importer le stock du jour</button>`:""}`;
   } else if(ui.tab==="inv"){
     tb.innerHTML=`<input type="search" id="tb-iq" class="grow" placeholder="Rechercher N°, dépôt, groupe…" value="${esc(ui.ivQ||"")}">
       <div class="seg" role="group" aria-label="Statut">${[["","Tous"],["encours","En cours"],["valide","Validés"]].map(([k,l])=>`<button data-ist="${k}" aria-pressed="${(ui.ivSt||"")===k}">${l}</button>`).join("")}</div>
@@ -752,6 +767,7 @@ function renderToolbar(){
   on("tb-dc","click",()=>transferEditor(null,{decl:true}));
   on("tb-iv","click",()=>invCreate());
   on("tb-rec","click",()=>recImport());
+  on("tb-maj","click",()=>majImport());
   on("tb-iq","input",e=>{ui.ivQ=e.target.value;renderBody()});
   tb.querySelectorAll("[data-ist]").forEach(b=>b.onclick=()=>{ui.ivSt=b.dataset.ist;saveUi();renderToolbar();renderBody()});
   tb.querySelectorAll("[data-dst]").forEach(b=>b.onclick=()=>{ui.dcSt=b.dataset.dst;saveUi();renderToolbar();renderBody()});
@@ -800,7 +816,8 @@ function renderBody(){
   updDepUI();
   for(const[idn,dc]of[["#trs-n",false],["#dcl-n",true]]){const tn=$(idn);if(tn){const n=draftCount(dc);tn.hidden=!n;tn.textContent=n;tn.title=n+" brouillon(s) à valider"}}
   {const ivn=$("#inv-n");if(ivn){const n=invCount();ivn.hidden=!n;ivn.textContent=n;ivn.title=n+" inventaire(s) en cours"}}
-  ({dash:renderDash,articles:renderArticles,stock:renderArticles,trs:b=>renderTransferts(b,false),decl:renderDecl,inv:renderInv,mvts:renderMoves,params:renderParams,prefs:renderPrefs}[ui.tab]||renderDash)(b);
+  {const mn=$("#maj-n");if(mn){const off=!loaded.majstock||!!majToday();mn.hidden=off;mn.title=off?"":"Stock non mis à jour aujourd'hui"}}
+  ({maj:renderMaj,dash:renderDash,articles:renderArticles,stock:renderArticles,trs:b=>renderTransferts(b,false),decl:renderDecl,inv:renderInv,mvts:renderMoves,params:renderParams,prefs:renderPrefs}[ui.tab]||renderDash)(b);
 }
 
 /* ---------- filtering ---------- */
@@ -844,7 +861,7 @@ function renderDash(b){
   const gRows=Object.entries(byG).sort((a,b)=>b[1]-a[1]);const gMax=Math.max(1,...gRows.map(r=>r[1]));
   const byD=deps.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return[d,q]}).sort((a,b)=>b[1]-a[1]);const dMax=Math.max(1,...byD.map(r=>r[1]));
   const wl=weeks.map(t=>{const d=new Date(t);return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")});
-  b.innerHTML=`
+  b.innerHTML=`${majBanner()}
   <div class="kpis">
     <div class="kpi"><span class="eyebrow">Articles</span><b>${arts.length}</b><span class="sub">${S.groupes.length} groupes · ${deps.length} dépôts</span></div>
     <div class="kpi"><span class="eyebrow">Quantité en stock</span><b>${fmt(qtot)}</b><span class="sub">toutes unités confondues</span></div>
@@ -866,6 +883,7 @@ function renderDash(b){
   b.querySelectorAll("[data-art]").forEach(el=>el.onclick=()=>articleDetail(el.dataset.art));
   b.querySelectorAll("[data-dep]").forEach(el=>el.onclick=()=>{ui.deps=[el.dataset.dep];ui.tab="articles";ui.view="table";artLimit=120;saveUi();syncHeader();renderAll()});
   const s=$("#see-mv",b);if(s)s.onclick=e=>{e.preventDefault();ui.tab="mvts";saveUi();syncHeader();renderAll()};
+  bindMajBanner(b);
 }
 function niceMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return(n<=1?1:n<=2?2:n<=5?5:10)*p}
 function axis(W,H,L,T,B,max,ticks=4){let s="";for(let i=0;i<=ticks;i++){const v=max*i/ticks,y=T+(H-T-B)*(1-i/ticks);s+=`<line x1="${L}" x2="${W-8}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${fmt(v)}</text>`}return s}
@@ -1696,6 +1714,148 @@ function stockCheck(){
   }))};
 }
 
+/* ===== C. Mise à jour journalière du stock (fichier « Stock disponible ») ===== */
+const majDet={};
+function majToday(){return S.majstock.filter(x=>x.date===today()).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null}
+function majLast(){return S.majstock.slice().sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null}
+const fhm=ts=>{const d=new Date(ts||0);return String(d.getHours()).padStart(2,"0")+"h"+String(d.getMinutes()).padStart(2,"0")};
+function majBanner(){
+  if(!loaded.majstock)return"";
+  const t=majToday(),l=majLast();
+  if(t)return`<div class="maj-banner ok"><b>✓ Stock mis à jour aujourd'hui</b> à ${fhm(t.ts)} par <b>${esc(t.parNom||"—")}</b> · fichier ${uS(t.fichier||"")} · ${t.nEcarts||0} écart${(t.nEcarts||0)>1?"s":""}${t.nCrees?` · ${t.nCrees} ${t.nCrees>1?"nouveaux articles":"nouvel article"}`:""} <a href="#" data-goto-maj>Voir l'état des écarts</a></div>`;
+  return`<div class="maj-banner bad"><b>⚠ Le stock n'est pas encore mis à jour aujourd'hui (${fdate(today())}).</b> Importez d'abord le fichier « Stock disponible » avant toute opération (transfert, casse / perte, inventaire).${l?` Dernière mise à jour : ${fdate(l.date)} à ${fhm(l.ts)} par ${esc(l.parNom||"—")}.`:" Aucune mise à jour enregistrée."} ${canAdmin?`<button class="btn sm" data-maj-imp>📥 Importer le stock du jour</button>`:"Prévenez l'administrateur."}</div>`;
+}
+function bindMajBanner(b){b.querySelectorAll("[data-maj-imp]").forEach(x=>x.onclick=()=>majImport());b.querySelectorAll("[data-goto-maj]").forEach(x=>x.onclick=e=>{e.preventDefault();ui.tab="maj";const t=majToday();if(t)ui.majSel=t.id;saveUi();syncHeader();renderAll()})}
+
+function majImport(){
+  if(!canAdmin){toast("Réservé à l'administrateur.");return}
+  const t0=majToday();
+  const m=openModal(`<header><h2>Mise à jour du stock du jour</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p class="hint" style="margin:0;text-transform:none">Chargez l'export <b>Stock disponible</b> (.xlsm / .xlsx). Seules les colonnes jaunes sont lues : <b>Stock · Groupe Articles · N° Article · Article · Dispo. ACT · Unité</b>. Seuls les dépôts déjà créés dans l'appli sont mis à jour (les dépôts « non matériels » sont ignorés). Les quantités de l'appli sont remplacées par celles du fichier, les nouveaux articles sont créés sans photo, et l'import est enregistré avec votre nom, la date et l'heure.</p>
+    ${t0?`<p class="lock warn" style="margin:0">Le stock a déjà été mis à jour aujourd'hui à ${fhm(t0.ts)} par ${esc(t0.parNom||"—")}. Un nouvel import enregistrera une deuxième mise à jour.</p>`:""}
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="file" id="mj-file" accept=".xlsx,.xlsm,.xls" style="max-width:340px;text-transform:none"><span class="hint" id="mj-st"></span></div>
+    <div id="mj-res"></div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="mj-go" disabled>Mettre à jour le stock</button></footer>`,{wide:"xl"});
+  let R=null;
+  $("#mj-file",m).onchange=async e=>{const f=e.target.files[0];if(!f)return;const st=$("#mj-st",m),err=m.querySelector(".err");err.textContent="";st.textContent="Lecture du fichier…";$("#mj-res",m).innerHTML="";$("#mj-go",m).disabled=true;
+    try{await loadLib("xlsx");const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});
+      const sn=wb.SheetNames.find(n=>nrm(n)==="DATA")||wb.SheetNames.find(n=>{const a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null,raw:true}).slice(0,15);return a.some(r=>r&&r.some(c=>nrm(c)==="STOCK")&&r.some(c=>nrm(c)==="ARTICLE"))});
+      if(!sn)throw{message:"Feuille introuvable : il faut une feuille avec les colonnes « Stock » et « Article »."};
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+      const hi=aoa.findIndex(r=>r&&r.some(c=>nrm(c)==="STOCK")&&r.some(c=>nrm(c)==="ARTICLE"));
+      const H=aoa[hi].map(nrm),ci=re=>H.findIndex(h=>re.test(h));
+      const C={dep:ci(/^STOCK$/),grp:ci(/^GROUPE/),num:ci(/^N ?ARTICLE|^NO ARTICLE/),art:ci(/^ARTICLE$/),q:ci(/^DISPO ACT|^DISPO$|^QTE|^QUANTITE/),un:ci(/^UNITE$/)};
+      if(C.q<0)C.q=ci(/DISPO/);
+      if(C.dep<0||C.art<0||C.q<0)throw{message:"Il manque une colonne obligatoire : Stock, Article ou Dispo. ACT."};
+      let exp="";const info=wb.SheetNames.find(n=>nrm(n)==="INFO");if(info){const ia=XLSX.utils.sheet_to_json(wb.Sheets[info],{header:1,defval:null,raw:false});const r0=ia[0]||[],r1=ia[1]||[];const k=r0.findIndex(c=>nrm(c)==="CREATED");if(k>=0&&r1[k])exp=String(r1[k])}
+      st.textContent="Comparaison avec le stock de l'appli…";await new Promise(r=>setTimeout(r,30));
+      R=majAnalyse(aoa.slice(hi+1),C);R.fichier=f.name;R.exportDate=exp;draw();st.textContent=f.name+(exp?" · export du "+exp:"");
+    }catch(x){st.textContent="";err.textContent=(x&&x.message)||String(x)}};
+  function majAnalyse(rows,C){
+    const dm=new Map();for(const d of S.depots){dm.set(nrm(d.nom),d.id);if(d.emplacement&&!dm.has(nrm(d.emplacement)))dm.set(nrm(d.emplacement),d.id)}
+    const match=buildMatcher(true),agg=new Map(),ign=new Map(),prot=new Set();let nLines=0,nKeep=0;
+    for(const mv of S.mouvements)if(mv.type==="entree"&&/RECEPTION/.test(nrm(mv.note||"")))prot.add(mv.articleId);
+    for(const r of rows){if(!r)continue;const dn=String(r[C.dep]??"").trim(),an=String(r[C.art]??"").replace(/\s+/g," ").trim();if(!dn||!an)continue;nLines++;
+      const dk=nrm(dn),did=dm.get(dk);if(!did){const u=ign.get(dk)||{nom:dn.toUpperCase(),n:0};u.n++;ign.set(dk,u);continue}nKeep++;
+      const q=+String(r[C.q]??0).replace(",",".")||0,key=nrm(an);let a=agg.get(key);
+      if(!a){a={nom:an.toUpperCase(),grp:{},un:{},num:"",deps:new Map()};agg.set(key,a)}
+      const g=String(r[C.grp]??"").trim();if(g)a.grp[g]=(a.grp[g]||0)+1;
+      const u=C.un>=0?String(r[C.un]??"").trim():"";if(u)a.un[u]=(a.un[u]||0)+1;
+      if(!a.num&&C.num>=0&&r[C.num]!=null&&String(r[C.num]).trim())a.num=String(r[C.num]).replace(/\.0+$/,"").trim();
+      a.deps.set(did,(a.deps.get(did)||0)+q)}
+    const top=o=>Object.entries(o).sort((x,y)=>y[1]-x[1])[0]?.[0]||"";
+    const pairs=new Map(),creer=[],protL=[],multi=new Map(),xq=new Map(),howM=new Map();let ok=0;
+    for(const a of agg.values()){a.grpName=top(a.grp)||"AUTRES MATERIELS";a.unName=top(a.un);let tot=0;for(const q of a.deps.values())tot+=q;a.tot=tot;
+      const hit=match(a.nom,a.num);
+      if(hit&&prot.has(hit.aid)){protL.push({aid:hit.aid,nom:a.nom});continue}
+      if(!hit){creer.push(a);continue}
+      (multi.get(hit.aid)||multi.set(hit.aid,[]).get(hit.aid)).push(a.nom);xq.set(a.nom,(xq.get(a.nom)||0)+tot);howM.set(hit.aid,hit.how);
+      for(const[did,q]of a.deps){const k=hit.aid+"__"+did;const p=pairs.get(k)||{aid:hit.aid,did,xl:0};p.xl+=q;pairs.set(k,p)}}
+    const ecarts=[];for(const p of pairs.values()){const cur=qty(p.aid,p.did);if(Math.abs(cur-p.xl)>1e-9)ecarts.push({...p,av:cur});else ok++}
+    const art=A(),renames=[];
+    for(const[aid,ns]of multi){const ar=art[aid];if(!ar)continue;const opts=[...new Set(ns)].sort((x,y)=>(xq.get(y)||0)-(xq.get(x)||0));if(opts.includes(String(ar.nom||"").replace(/\s+/g," ").trim()))continue;renames.push({aid,cur:ar.nom,opts,nom:opts[0],how:howM.get(aid)||"",on:true})}
+    ecarts.sort((x,y)=>Math.abs(y.xl-y.av)-Math.abs(x.xl-x.av));
+    return{nLines,nKeep,ign:[...ign.values()].sort((x,y)=>y.n-x.n),ecarts,creer,renames,prot:protL,ok,nArt:multi.size,tab:"ec",q:""};
+  }
+  function draw(){
+    const dm=D(),a=A(),box=$("#mj-res",m),plus=R.ecarts.filter(e=>e.xl>e.av).length,moins=R.ecarts.length-plus,selN=R.renames.filter(r=>r.on).length;
+    box.innerHTML=`<div class="kpis iv-kpis"><div class="kpi"><span class="eyebrow">Lignes retenues</span><b>${R.nKeep}</b><span class="sub">sur ${R.nLines} · ${R.ign.length} dépôts ignorés</span></div><div class="kpi"><span class="eyebrow">Articles reconnus</span><b>${R.nArt}</b><span class="sub">${R.ok} stocks déjà justes</span></div><div class="kpi ${R.ecarts.length?"alert":""}"><span class="eyebrow">Écarts à corriger</span><b>${R.ecarts.length}</b><span class="sub">${plus} en hausse · ${moins} en baisse</span></div><div class="kpi"><span class="eyebrow">Nouveaux articles</span><b>${R.creer.length}</b><span class="sub">créés sans photo</span></div></div>
+     <div class="seg" role="group" style="align-self:flex-start;flex-wrap:wrap">${[["ec",`Écarts (${R.ecarts.length})`],["cr",`Nouveaux articles (${R.creer.length})`],["nm",`Noms alignés (${R.renames.length})`],["ig",`Dépôts ignorés (${R.ign.length})`],...(R.prot.length?[["pr",`Protégés (${R.prot.length})`]]:[])].map(([k,l])=>`<button data-t="${k}" aria-pressed="${R.tab===k}">${l}</button>`).join("")}</div><div id="mj-tab"></div>`;
+    const t=$("#mj-tab",box);
+    if(R.tab==="ec")t.innerHTML=R.ecarts.length?`<div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Dépôt</th><th>Article</th><th class="r">Appli (avant)</th><th class="r">Fichier (après)</th><th class="r">Écart</th></tr></thead><tbody>${R.ecarts.slice(0,3000).map(e=>{const d=e.xl-e.av;return`<tr><td>${esc(dm[e.did]?.nom||"")}</td><td><b>${esc(a[e.aid]?.nom||"")}</b></td><td class="r num">${fmt(e.av)}</td><td class="r num"><b>${fmt(e.xl)}</b></td><td class="r num ${d>0?"iv-good":"iv-bad"}"><b>${d>0?"+":""}${fmt(d)}</b></td></tr>`}).join("")}</tbody></table></div>`:`<p class="lock">✓ Aucun écart : le stock de l'appli est déjà identique au fichier.</p>`;
+    else if(R.tab==="cr"){const gm=grpByName();t.innerHTML=R.creer.length?`<div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Article</th><th>N°</th><th>Groupe</th><th>Unité</th><th>Stock par dépôt</th><th class="r">Total</th></tr></thead><tbody>${R.creer.slice(0,3000).map(c=>`<tr><td><b>${esc(c.nom)}</b></td><td class="mono hint">${esc(c.num||"")}</td><td>${esc(c.grpName.toUpperCase())}${gm.has(nrm(c.grpName))?"":` <span class="chip">nouveau</span>`}</td><td class="hint">${esc(c.unName||"")}</td><td class="hint">${[...c.deps.entries()].filter(([,q])=>q).map(([did,q])=>`${esc(dm[did]?.nom||"")} : <b>${fmt(q)}</b>`).join(" · ")||"stock 0"}</td><td class="r num"><b>${fmt(c.tot)}</b></td></tr>`).join("")}</tbody></table></div>`:`<p class="lock">✓ Aucun nouvel article.</p>`}
+    else if(R.tab==="nm"){t.innerHTML=R.renames.length?`<p class="hint" style="margin:0">Ces articles prennent le nom écrit dans le fichier (code, photo, stock et historique inchangés). Décochez ceux à ne pas renommer.</p><div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th></th><th>Nom actuel</th><th>Nom du fichier</th><th>Reconnu par</th></tr></thead><tbody>${R.renames.map((r,i)=>`<tr><td><input type="checkbox" data-nm="${i}" ${r.on?"checked":""}></td><td><b>${esc(r.cur)}</b></td><td>${r.opts.length>1?`<select data-nms="${i}" style="max-width:420px">${r.opts.map(o=>`<option ${o===r.nom?"selected":""}>${esc(o)}</option>`).join("")}</select>`:`<b>${esc(r.nom)}</b>`}</td><td class="hint">${esc(r.how)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="lock">✓ Tous les noms sont déjà identiques au fichier.</p>`;
+      t.querySelectorAll("[data-nm]").forEach(c=>c.onchange=()=>{R.renames[+c.dataset.nm].on=c.checked;upd()});t.querySelectorAll("[data-nms]").forEach(c=>c.onchange=()=>{R.renames[+c.dataset.nms].nom=c.value})}
+    else if(R.tab==="ig")t.innerHTML=`<p class="hint" style="margin:0">Ces dépôts du fichier n'existent pas dans l'appli : leurs lignes sont ignorées (aucun dépôt n'est créé).</p><div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Dépôt du fichier</th><th class="r">Lignes ignorées</th></tr></thead><tbody>${R.ign.map(u=>`<tr><td>${esc(u.nom)}</td><td class="r num">${u.n}</td></tr>`).join("")}</tbody></table></div>`;
+    else t.innerHTML=`<p class="lock" style="margin:0">Articles issus de réceptions fournisseur (PDF / Excel) : leur nom et leur stock ne sont pas modifiés.</p><div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Article (appli)</th><th>Nom dans le fichier</th></tr></thead><tbody>${R.prot.map(p=>`<tr><td><b>${esc(a[p.aid]?.nom||"")}</b></td><td class="hint">${esc(p.nom)}</td></tr>`).join("")}</tbody></table></div>`;
+    box.querySelectorAll("[data-t]").forEach(x=>x.onclick=()=>{R.tab=x.dataset.t;draw()});upd();
+  }
+  function upd(){const b=$("#mj-go",m);b.disabled=!R;if(R){const n=R.renames.filter(r=>r.on).length;b.textContent=`Mettre à jour : ${R.ecarts.length} écart${R.ecarts.length>1?"s":""} · ${R.creer.length} ${R.creer.length>1?"nouveaux articles":"nouvel article"}${n?` · ${n} nom${n>1?"s":""}`:""}`}}
+  $("#mj-go",m).onclick=()=>{const b=$("#mj-go",m);confirmInline(b,"Confirmer la mise à jour ?",()=>guard(m,async()=>{
+    const upd={},now=Date.now(),dt=today(),[yy,mo,dd]=dt.split("-").map(Number),dateTs=new Date(yy,mo-1,dd,12).getTime();
+    const mid=db.collection("majstock").doc().id;
+    let parNom="";try{const ps=user&&myId?await user.profiles([myId]):null;parNom=(ps&&ps[myId]&&ps[myId].name)||""}catch(e){}
+    if(!parNom)try{parNom=(window.FB&&window.FB.auth&&window.FB.auth.currentUser&&window.FB.auth.currentUser.email)||""}catch(e){}
+    const gids=await ensureGroups([...new Set(R.creer.map(c=>c.grpName))],upd),um=unitByName(),dmap=D();
+    const defU=S.unites.some(u=>u.id==="pce")?"pce":(S.unites[0]?.id||"");const crees=[];
+    for(const c of R.creer){const id=db.collection("articles").doc().id;const ds=[...c.deps.entries()];
+      const hs=new Set(ds.map(([did])=>dmap[did]?.hotel).filter(h=>h&&h!=="LES2"));const dDef=(ds.find(([,q])=>q)||ds[0]||[""])[0];
+      upd["data/articles/"+id]={code:c.num?String(c.num).toUpperCase():nextArtCode(),nom:c.nom,nomsExcel:[c.nom],groupeId:gids[nrm(c.grpName)]||"",uniteId:um.get(nrm(c.unName))||defU,hotel:hs.size===1?[...hs][0]:"LES2",seuil:0,reference:"",description:"IMPORT STOCK DISPONIBLE DU "+fdate(dt),depotDefaut:dDef,cree:now,maj:now,par:myId||null};
+      for(const[did,q]of ds)if(q)upd["data/stock/"+id+"__"+did]={articleId:id,depotId:did,qte:q,maj:now,source:"MAJ "+dt};
+      crees.push({a:id,n:c.nom,q:c.tot})}
+    const rns=R.renames.filter(r=>r.on&&A()[r.aid]);for(const r of rns){upd["data/articles/"+r.aid+"/nom"]=r.nom;upd["data/articles/"+r.aid+"/nomsExcel"]=r.opts;upd["data/articles/"+r.aid+"/maj"]=now}
+    const note="MISE A JOUR STOCK DU "+fdate(dt)+(R.exportDate?" (EXPORT "+R.exportDate+")":"");const ecs=[];let sp=0,sm=0;
+    for(const e of R.ecarts){const delta=Math.round((e.xl-e.av)*1000)/1000;const nm=rns.find(r=>r.aid===e.aid)?.nom||A()[e.aid]?.nom||"";
+      upd["data/mouvements/"+db.collection("mouvements").doc().id]={type:"inventaire",articleId:e.aid,depotId:e.did,qte:e.xl,date:dt,note,majId:mid,effets:[{depotId:e.did,delta}],articleNom:nm,dateTs,ts:now,par:myId||null};
+      upd["data/stock/"+e.aid+"__"+e.did]={articleId:e.aid,depotId:e.did,qte:e.xl,maj:now,source:"MAJ "+dt};
+      if(delta>0)sp+=delta;else sm+=-delta;ecs.push({a:e.aid,n:nm,d:e.did,av:e.av,ap:e.xl})}
+    upd["data/majstock_det/"+mid]={ecarts:ecs,crees,renames:rns.map(r=>({a:r.aid,de:r.cur,en:r.nom})),ign:R.ign};
+    upd["data/majstock/"+mid]={date:dt,ts:now,par:myId||null,parNom,fichier:R.fichier,exportDate:R.exportDate||"",lignes:R.nLines,lignesRetenues:R.nKeep,nIgnores:R.ign.length,nReconnus:R.nArt,nEcarts:ecs.length,hausse:sp,baisse:sm,nCrees:crees.length,nRenommes:rns.length,nProteges:R.prot.length};
+    b.textContent="Enregistrement…";await batchWrite(upd,(i,n)=>{b.textContent=`Enregistrement… ${i} / ${n}`});
+    majDet[mid]=upd["data/majstock_det/"+mid];
+    closeModal();toast(`Stock mis à jour : ${ecs.length} écart${ecs.length>1?"s":""} corrigé${ecs.length>1?"s":""}, ${crees.length} article${crees.length>1?"s":""} créé${crees.length>1?"s":""}`);
+    ui.tab="maj";ui.majSel=mid;saveUi();syncHeader();renderAll();
+  }))};
+}
+
+/* onglet « MAJ stock » : historique des imports + état des écarts */
+function renderMaj(b){
+  const list=S.majstock.slice().sort((x,y)=>(y.ts||0)-(x.ts||0));
+  if(!ui.majSel||!list.some(x=>x.id===ui.majSel))ui.majSel=list[0]?.id||"";
+  const cur=list.find(x=>x.id===ui.majSel);
+  b.innerHTML=`${majBanner()}
+  <div class="grid-maj">
+   <div class="panel"><h2>Historique des mises à jour <small>${list.length}</small></h2>${list.length?`<div class="list" style="max-height:62vh;overflow:auto">${list.map(x=>`<div class="li click ${x.id===ui.majSel?"sel":""}" data-maj="${x.id}"><div class="t"><b>${fdate(x.date)} · ${fhm(x.ts)}</b><span>par ${esc(x.parNom||"—")} · ${x.nEcarts||0} écart${(x.nEcarts||0)>1?"s":""} · ${x.nCrees||0} nouveau${(x.nCrees||0)>1?"x":""}</span><span class="hint">${uS(x.fichier||"")}</span></div></div>`).join("")}</div>`:`<p class="hint">Aucun import pour le moment.${canAdmin?" Utilisez « Importer le stock du jour ».":""}</p>`}</div>
+   <div class="panel" id="maj-det">${cur?`<h2>État des écarts du ${fdate(cur.date)} <small>${fhm(cur.ts)} · ${esc(cur.parNom||"")}</small></h2><p class="hint">Chargement…</p>`:`<h2>État des écarts</h2><p class="hint">Sélectionnez une mise à jour.</p>`}</div>
+  </div>`;
+  bindMajBanner(b);
+  b.querySelectorAll("[data-maj]").forEach(el=>el.onclick=()=>{ui.majSel=el.dataset.maj;saveUi();renderBody()});
+  if(cur)majShow(cur,$("#maj-det",b));
+}
+async function majShow(cur,box){
+  let det=majDet[cur.id];
+  if(!det){try{const s=await db.collection("majstock_det").doc(cur.id).get();det=s.exists?s.data():{};majDet[cur.id]=det}catch(e){box.innerHTML+=`<p class="err">Détail indisponible.</p>`;return}}
+  if(!box.isConnected)return;
+  const dm=D(),ecs=(det.ecarts||[]),deps=[...new Set(ecs.map(e=>e.d))];
+  const f=ui.majF||{d:"",q:"",s:""};
+  const rows=ecs.filter(e=>(!f.d||e.d===f.d)&&(!f.s||(f.s==="+"?e.ap>e.av:e.ap<e.av))&&(!f.q||(e.n||"").toLowerCase().includes(f.q.toLowerCase())));
+  let sp=0,sm=0;for(const e of rows){const d=e.ap-e.av;if(d>0)sp+=d;else sm-=d}
+  box.innerHTML=`<h2>État des écarts du ${fdate(cur.date)} <small>${fhm(cur.ts)} · par ${esc(cur.parNom||"—")}</small></h2>
+   <dl class="kv"><dt>Fichier</dt><dd>${uS(cur.fichier||"")}${cur.exportDate?` · export du ${esc(cur.exportDate)}`:""}</dd><dt>Lignes</dt><dd>${cur.lignesRetenues||0} retenues sur ${cur.lignes||0} (${cur.nIgnores||0} dépôts ignorés)</dd><dt>Résultat</dt><dd><b>${cur.nEcarts||0}</b> écart${(cur.nEcarts||0)>1?"s":""} corrigé${(cur.nEcarts||0)>1?"s":""} (+${fmt(cur.hausse)} / −${fmt(cur.baisse)}) · <b>${cur.nCrees||0}</b> article${(cur.nCrees||0)>1?"s":""} créé${(cur.nCrees||0)>1?"s":""} · ${cur.nRenommes||0} nom${(cur.nRenommes||0)>1?"s":""} aligné${(cur.nRenommes||0)>1?"s":""}</dd></dl>
+   <div class="trx-filters"><input type="search" id="mf-q" placeholder="Rechercher un article…" value="${esc(f.q)}"><select id="mf-d"><option value="">Tous les dépôts</option>${deps.map(id=>`<option value="${id}" ${f.d===id?"selected":""}>${esc(dm[id]?.nom||id)}</option>`).join("")}</select><select id="mf-s"><option value="">Hausses et baisses</option><option value="+" ${f.s==="+"?"selected":""}>Hausses</option><option value="-" ${f.s==="-"?"selected":""}>Baisses</option></select><button class="btn sm" id="mf-x">⬇ Exporter (Excel)</button></div>
+   ${rows.length?`<div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Dépôt</th><th>Article</th><th class="r">Avant</th><th class="r">Après</th><th class="r">Écart</th></tr></thead><tbody>${rows.slice(0,3000).map(e=>{const d=e.ap-e.av;return`<tr><td>${esc(dm[e.d]?.nom||e.d)}</td><td><b>${esc(e.n)}</b></td><td class="r num">${fmt(e.av)}</td><td class="r num"><b>${fmt(e.ap)}</b></td><td class="r num ${d>0?"iv-good":"iv-bad"}"><b>${d>0?"+":""}${fmt(d)}</b></td></tr>`}).join("")}</tbody><tfoot><tr><td colspan="4" class="r"><b>Total ${rows.length} ligne${rows.length>1?"s":""}</b></td><td class="r num"><span class="iv-good">+${fmt(sp)}</span> / <span class="iv-bad">−${fmt(sm)}</span></td></tr></tfoot></table></div>`:`<p class="lock">${ecs.length?"Aucun écart pour ce filtre.":"✓ Aucun écart lors de cette mise à jour."}</p>`}
+   ${(det.crees||[]).length?`<details style="margin-top:12px"><summary><b>${det.crees.length} article${det.crees.length>1?"s":""} créé${det.crees.length>1?"s":""}</b> (sans photo)</summary><div class="tablewrap" style="max-height:40vh;overflow:auto"><table><thead><tr><th>Article</th><th class="r">Stock total</th></tr></thead><tbody>${det.crees.slice(0,3000).map(c=>`<tr><td class="click" data-art="${c.a}"><b>${esc(c.n)}</b></td><td class="r num">${fmt(c.q)}</td></tr>`).join("")}</tbody></table></div></details>`:""}
+   ${(det.renames||[]).length?`<details style="margin-top:8px"><summary><b>${det.renames.length} nom${det.renames.length>1?"s":""} aligné${det.renames.length>1?"s":""}</b> sur le fichier</summary><div class="tablewrap" style="max-height:40vh;overflow:auto"><table><thead><tr><th>Ancien nom</th><th>Nouveau nom</th></tr></thead><tbody>${det.renames.map(r=>`<tr><td class="hint">${esc(r.de)}</td><td><b>${esc(r.en)}</b></td></tr>`).join("")}</tbody></table></div></details>`:""}`;
+  const setF=(k,v)=>{ui.majF={...f,[k]:v};majShow(cur,box)};
+  $("#mf-q",box).oninput=e=>{const v=e.target.value;clearTimeout(majShow._t);majShow._t=setTimeout(()=>{setF("q",v);const i=$("#mf-q",box);if(i){i.focus();i.setSelectionRange(v.length,v.length)}},250)};
+  $("#mf-d",box).onchange=e=>setF("d",e.target.value);$("#mf-s",box).onchange=e=>setF("s",e.target.value);
+  box.querySelectorAll("[data-art]").forEach(el=>el.onclick=()=>articleDetail(el.dataset.art));
+  $("#mf-x",box).onclick=async()=>{try{await loadLib("xlsx");const data=rows.map(e=>({"Dépôt":dm[e.d]?.nom||e.d,"Article":e.n,"Avant":e.av,"Après":e.ap,"Écart":Math.round((e.ap-e.av)*1000)/1000}));
+    const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(data.length?data:[{"Dépôt":"","Article":"Aucun écart","Avant":"","Après":"","Écart":""}]);ws["!cols"]=[{wch:34},{wch:60},{wch:10},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,"Écarts");
+    const info=XLSX.utils.aoa_to_sheet([["Mise à jour du",fdate(cur.date)+" "+fhm(cur.ts)],["Par",cur.parNom||""],["Fichier",cur.fichier||""],["Export",cur.exportDate||""],["Écarts",cur.nEcarts||0],["Articles créés",cur.nCrees||0]]);XLSX.utils.book_append_sheet(wb,info,"Infos");
+    XLSX.writeFile(wb,`ECARTS STOCK ${cur.date}.xlsx`)}catch(x){toast((x&&x.message)||"Export impossible")}};
+}
+
 /* ===== B. Réception fournisseur (facture / BL) depuis un PDF ou un Excel au format modèle ===== */
 const REC_COLS=["Stock","Groupe Articles","N° Article","Article","QTE","Unité Base","A CRÉER","PHOTO"];
 function parseRecHeader(lines){const h={fournisseur:"",facture:"",factureDate:"",bl:"",blDate:""};
@@ -2093,6 +2253,7 @@ const TAB_IC={dash:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" 
   trs:'<path d="M4 8h15"/><path d="M15 4l4 4-4 4"/><path d="M20 16H5"/><path d="M9 12l-4 4 4 4"/>',
   decl:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4"/><path d="M12 17.2v.3"/>',
   mvts:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+  maj:'<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/>',
   inv:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 10l1.5 1.5L13 9"/><path d="M9 16h6"/>',
   params:'<path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-8h10v8"/><path d="M7 17h10"/>',
   prefs:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'};
@@ -2121,7 +2282,7 @@ function renderPrefs(b){
     ${tg("icons","Icônes dans les onglets","Petites icônes devant les noms des onglets")}
    </section>
    <section class="panel pf-sec"><h2>${ic('<path d="M5 3l14 9-14 9z"/>')}Au démarrage</h2>
-    <div class="pf-row"><span>Onglet ouvert au lancement</span>${sel("start",[["dernier","Dernier onglet utilisé"],["dash","Tableau de bord"],["articles","Articles"],["trs","Transferts"],["decl","Casses / Pertes"],["inv","Inventaires"],["mvts","Mouvements"]])}</div>
+    <div class="pf-row"><span>Onglet ouvert au lancement</span>${sel("start",[["dernier","Dernier onglet utilisé"],["dash","Tableau de bord"],["maj","MAJ stock"],["articles","Articles"],["trs","Transferts"],["decl","Casses / Pertes"],["inv","Inventaires"],["mvts","Mouvements"]])}</div>
     <div class="pf-row"><span>Hôtel affiché</span>${sel("hotel",[["dernier","Dernier choix"],["ALL","Tous"],["NOVOTEL","NOVOTEL"],["IBIS","IBIS"]])}</div>
     <div class="pf-row"><span>Affichage des articles</span>${sel("artView",[["dernier","Dernier choix"],["cards","Fiches avec photos"],["table","Liste"]])}</div>
    </section>
