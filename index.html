@@ -725,7 +725,7 @@ function renderToolbar(){
   } else if(ui.tab==="mvts"){
     tb.innerHTML=`<input type="search" id="tb-mq" class="grow" placeholder="Rechercher article, dépôt, note, N° de transfert…" value="${esc(ui.mvQ)}">
       <select id="tb-mt" aria-label="Type"><option value="">Tous les types</option>${Object.entries(MV).map(([k,v])=>`<option value="${k}" ${ui.mvType===k?"selected":""}>${v.label}</option>`).join("")}</select>
-      ${canAdmin?`<button class="btn" id="tb-mv">+ Mouvement</button>`:""}${w?`<button class="btn primary" id="tb-tr">⇄ Transfert</button>`:""}`;
+      ${canAdmin?`<button class="btn" id="tb-rec">📥 Réception</button><button class="btn" id="tb-mv">+ Mouvement</button>`:""}${w?`<button class="btn primary" id="tb-tr">⇄ Transfert</button>`:""}`;
   } else if(ui.tab==="trs"){
     tb.innerHTML=`<input type="search" id="tb-tq" class="grow" placeholder="Rechercher N°, article, dépôt, motif…" value="${esc(ui.trQ)}">
       <div class="seg" role="group" aria-label="Statut">${[["","Tous"],["brouillon","Brouillons"],["valide","Validés"]].map(([k,l])=>`<button data-st="${k}" aria-pressed="${ui.trSt===k}">${l}</button>`).join("")}</div>
@@ -751,6 +751,7 @@ function renderToolbar(){
   on("tb-dq","input",e=>{ui.dcQ=e.target.value;renderBody()});
   on("tb-dc","click",()=>transferEditor(null,{decl:true}));
   on("tb-iv","click",()=>invCreate());
+  on("tb-rec","click",()=>recImport());
   on("tb-iq","input",e=>{ui.ivQ=e.target.value;renderBody()});
   tb.querySelectorAll("[data-ist]").forEach(b=>b.onclick=()=>{ui.ivSt=b.dataset.ist;saveUi();renderToolbar();renderBody()});
   tb.querySelectorAll("[data-dst]").forEach(b=>b.onclick=()=>{ui.dcSt=b.dataset.dst;saveUi();renderToolbar();renderBody()});
@@ -1034,13 +1035,13 @@ function renderParams(b){
   const w=canAdmin;const depSort=(a,b)=>((a.hotel==="LES2"?"0":a.hotel)+a.nom).localeCompare((b.hotel==="LES2"?"0":b.hotel)+b.nom);const usedG=new Set(S.articles.map(a=>a.groupeId)),usedU=new Set(S.articles.map(a=>a.uniteId));
   const deps=S.depots.slice().sort(depSort).filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2");
   const isAdm=window.FB&&window.FB.role()==="admin";
-  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
+  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-rec">📥 Importer une réception</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
    <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2><div class="list">${deps.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
    <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
   </div>`;
   b.querySelectorAll("[data-new]").forEach(x=>x.onclick=()=>refForm(x.dataset.new));
-  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
+  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const rc=$("#adm-rec",b);if(rc)rc.onclick=()=>recImport();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
   b.querySelectorAll("[data-ed]").forEach(x=>x.onclick=()=>{const[c,id]=x.dataset.ed.split(":");refForm(c,S[c].find(r=>r.id===id))});
 }
 
@@ -1564,6 +1565,255 @@ async function recordMove(mv,extraArts={}){
   const [y,mo,d]=mv.date.split("-").map(Number);const dateTs=new Date(y,mo-1,d,12).getTime();
   await db.collection("mouvements").doc().set({...mv,effets,articleNom:art?.nom||"",dateTs,ts:Date.now(),par:myId||null});
   for(const e of effets){const k=mv.articleId+"__"+e.depotId;const nv=Math.round((qty(mv.articleId,e.depotId)+e.delta)*1000)/1000;stockMap[k]=nv;await db.collection("stock").doc(k).set({articleId:mv.articleId,depotId:e.depotId,qte:nv,maj:Date.now()})}
+}
+
+/* ---------- Importations : contrôle de stock (Excel STOCKS DISPO) + réceptions fournisseur (PDF / Excel) ---------- */
+const LIBS={xlsx:"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",jszip:"https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",pdf:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"};
+const _libP={};
+function loadLib(k){return _libP[k]||(_libP[k]=new Promise((res,rej)=>{const s=document.createElement("script");s.src=LIBS[k];s.onload=()=>res();s.onerror=()=>{delete _libP[k];rej({message:"Impossible de charger l'outil de lecture (vérifiez la connexion internet)."})};document.head.appendChild(s)}))}
+const nrm=s=>String(s??"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/Œ/g,"OE").replace(/[^A-Z0-9]+/g," ").trim();
+const CODE_RE=/^(E\d{3,}|REF\d*|DGN\d*|ZY\d*|\d{5,})$/,STOPW=new Set(["REF","DGN","HP","ZH","CAMBRO","OZTI","NOSTRA","IC","TRSP"]);
+const stripN=n=>n.split(" ").filter(t=>t&&!CODE_RE.test(t)&&!STOPW.has(t)).join(" ");
+const numsOf=n=>(n.match(/\d+/g)||[]).sort().join(",");
+const codesOf=n=>[...new Set((String(n||"").match(/\d{5,}/g)||[]))];
+function lcsLen(a,b){if(a.length<b.length)[a,b]=[b,a];let prev=new Uint16Array(b.length+1),cur=new Uint16Array(b.length+1);for(let i=1;i<=a.length;i++){const ca=a.charCodeAt(i-1);for(let j=1;j<=b.length;j++)cur[j]=ca===b.charCodeAt(j-1)?prev[j-1]+1:(prev[j]>cur[j-1]?prev[j]:cur[j-1]);[prev,cur]=[cur,prev]}return prev[b.length]}
+const tsr=(a,b)=>{const x=a.split(" ").sort().join(" "),y=b.split(" ").sort().join(" ");return x.length+y.length?200*lcsLen(x,y)/(x.length+y.length):100};
+/* correspondances déjà utilisées lors de l'import initial (noms Excel différents du nom de l'article) */
+const STOCK_ALIAS={"ASSIETTE CARREE 110 SMB":"g731","NATURE FLAMBE TROLLEY GAS X1":"g1455","BOL A CEREALE EN CERAMIQUE 10 CL HP":"g251","BOUILLOIRE 2 5L WKTS251521IR":"g327","CUILLERE DE TABLE EOLE REF C25500B000325 AMEFA":"g1847","FOURCHETTE DE TABLE EOLE REF C25500B000320 AMEFA":"g1416","THEIERE 6 TASSES CLOCHE DGN 211989":"g1114","TASSE A CAFE 10CL DGN 227828":"g1330","TASSE A THE 25 CL IC DGN 227829":"g1331","VERRE COCKTAIL 20CL TRANSP":"g1376","MACHINE A PATES OZT 9823 00022 00":"g1451","FER A SEC 1200W SEMELLE ANTIADHESIVE WESTPOINT WIRC1217R":"g1742","PLATEAU REPAS EN INOX":"g389","COUPE RONDE 24CM 136535":"g1621","BOL GOURMET 30CL VERT DGN 230957":"g196","MINI BOL GOURMET 7CL ARGILE VERT DGN 230956":"g195","SALAM NEW BLANC CREMIER 15CL 1C DGN 187277":"g1116","SMOOS BLANC TASSE LUNGO 20CL DGN 207767":"g809","SOUCOUPE A CAFE RONDE 15C M DGN 161025":"g660","SOUCOUPE A THE 18CM DGN 161028":"g661","TASSE A CAFE 11CL DGN 208948":"g808","THEIERE 8 TASSES CLOCHE DGN 211990":"g1113","MIROIR CUILLERE A SOUPE ANGLAISE DGN112695":"g484","BOUCHON PORCEL CLOCHE EN VERRE DGN 206504":"g199","CLOCHE 15CM DGN 182301":"g1125","CLOCHE 24CM DGN 182614":"g1124","TASSE A CAFE 10CL 1C FRANCE69111000 227828":"g1330","TASSE A THE 25CL FRANCE 69111000 DGN 227829":"g1331","BOCAL THERMIQUE VERRE 1 2 GB 91":"g104","BOITE GN 1 2 H 4 5CM BOIS DE CHENE HUILE VALE":"g1087","GOURMET BLEU BOL 16CM 100CL":"g211","GOURMET CARBONE BOL GOURMET 30CL IC":"g208","SALADIER BLANCHE MATTE 12 CM HP":"g252","SALADIER BLANCHE MATTE 17 CM HP":"g248","CASSEROLE BUYER INOX 16 18 CM":"g876","COCOTTE GOURMET 50CL VERT DGN 230958":"g197","MOULE PATISSERIE SILICONE COQUILLAGE":"g142","CUILLERE DE SERVICE OU A SALADE CLASSIC 8 6 CM":"g528","CHAISE HAUTE NAYA CROISE 80CM AVEC COUSIN PLAT BEIGE":"g1735","CHAISE HAUTE NAYA 65CM AVEC COUSIN PLAT ROUILLE":"g1734","CHARIOT DE NETTOYAGE EQUIPIER PORTIMPEX":"g1551","PANNEAU DE SIGNALISATION CAUTION WET FLOOR":"g1552","INFUSEUR 6 8 TASSES DGN 147993":"g779","COCOTTE GOURMET 50CL ROSE DGN 230910":"g193","MOULE CANNELES SILICONE":"g152","BOUTEILLE FRAICHEUR":"g454","BLENDER TAURUS 912443000":"g1276"};
+function buildMatcher(){
+  const codeIdx=new Map(),byS=new Map(),byFull=new Map(),tokIdx=new Map(),full=new Map(),push=(m,k,v)=>{let a=m.get(k);if(!a)m.set(k,a=[]);a.push(v)};
+  for(const a of S.articles){const c=nrm(a.code).replace(/ /g,"");if(c.length>=5&&!/^(GEN|ART)/.test(c))push(codeIdx,c,a.id);
+    const f=nrm(a.nom);full.set(a.id,f+" "+nrm(a.code));push(byFull,f,a.id);const s=stripN(f);push(byS,s,a.id);
+    for(const t of new Set(s.split(" ")))if(t.length>=3){let st=tokIdx.get(t);if(!st)tokIdx.set(t,st=new Set());st.add(s)}}
+  const ids=new Set(S.articles.map(a=>a.id));
+  const fn=(name,code)=>{const n=nrm(name);if(!n)return null;if(STOCK_ALIAS[n]&&ids.has(STOCK_ALIAS[n]))return{aid:STOCK_ALIAS[n],how:"correspondance de l'import"};if(byFull.has(n))return{aid:byFull.get(n)[0],how:"nom identique"};
+    const cc=nrm(code).replace(/ /g,"");if(cc.length>=5&&codeIdx.get(cc)?.length===1)return{aid:codeIdx.get(cc)[0],how:"code"};
+    for(const t of n.split(" "))if(t.length>=5&&codeIdx.get(t)?.length===1)return{aid:codeIdx.get(t)[0],how:"code"};
+    const s=stripN(n);if(byS.has(s))return{aid:byS.get(s)[0],how:"nom"};
+    const toks=[...new Set(s.split(" "))].filter(t=>t.length>=3),cand=new Map();
+    for(const t of toks){const st=tokIdx.get(t);if(st&&st.size<500)for(const k of st)cand.set(k,(cand.get(k)||0)+1)}
+    let best=null,bs=0;const ns=numsOf(s),myc=codesOf(n);
+    for(const[k,c]of cand){if(toks.length>2&&c<2)continue;if(numsOf(k)!==ns)continue;const r=tsr(s,k);if(r>bs){bs=r;best=k}}
+    if(best&&myc.length){const oc=new Set(byS.get(best).flatMap(id=>codesOf(full.get(id))));if(oc.size&&!myc.some(c=>oc.has(c)))best=null}
+    if(best&&bs>=93)return{aid:byS.get(best)[0],how:"nom proche "+Math.round(bs)+" %"};return null};
+  return fn;
+}
+const depByName=()=>{const m=new Map();for(const d of S.depots)m.set(nrm(d.nom),d.id);return m};
+const grpByName=()=>{const m=new Map();for(const g of S.groupes)m.set(nrm(g.nom),g.id);return m};
+const unitByName=()=>{const m=new Map();for(const u of S.unites){m.set(nrm(u.nom),u.id);if(u.abrev)m.set(nrm(u.abrev),u.id)}return m};
+const slug=s=>nrm(s).toLowerCase().replace(/ /g,"-").slice(0,60)||("x"+Date.now());
+const hotelOf=name=>{const n=nrm(name);return n.startsWith("NOVOTEL")?"NOVOTEL":n.startsWith("IBIS")?"IBIS":"LES2"};
+let _codeN=null;function nextArtCode(){if(_codeN===null){_codeN=0;for(const a of S.articles){const r=/^ART-(\d+)$/.exec(a.code||"");if(r)_codeN=Math.max(_codeN,+r[1])}}_codeN++;return"ART-"+String(_codeN).padStart(4,"0")}
+async function batchWrite(upd,prog){const ks=Object.keys(upd);for(let i=0;i<ks.length;i+=300){const part={};for(const k of ks.slice(i,i+300))part[k]=upd[k];await window.FB.update(window.FB.ref(window.FB.rdb),window.FB.clean(part));prog&&prog(Math.min(ks.length,i+300),ks.length)}}
+async function ensureGroups(names,upd){const gm=grpByName(),out={};let ci=S.groupes.length;for(const nm of names){const k=nrm(nm);if(!k)continue;if(gm.has(k)){out[k]=gm.get(k);continue}let id="g-"+slug(nm);while(S.groupes.some(g=>g.id===id)||Object.values(out).includes(id))id+="-2";upd["data/groupes/"+id]={nom:nm.trim().toUpperCase(),couleur:GROUP_COLORS[ci++%GROUP_COLORS.length]};out[k]=id;gm.set(k,id)}return out}
+
+/* ===== A. Contrôle du stock avec le fichier Excel (format STOCKS DISPO) ===== */
+function stockCheck(){
+  if(!canAdmin){toast("Réservé à l'administrateur.");return}
+  const m=openModal(`<header><h2>Contrôle du stock avec un fichier Excel</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p class="hint" style="margin:0;text-transform:none">Chargez l'état de stock exporté (format <b>STOCKS DISPO</b> : colonnes Stock · Groupe Articles · N° Article · Article · Dispo. ACT). L'appli compare chaque article, dépôt par dépôt, avec le stock actuel, liste les écarts et les articles qui n'existent pas encore. Rien n'est modifié avant votre validation.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="file" id="sc-file" accept=".xlsx,.xls" style="max-width:340px;text-transform:none"><span class="hint" id="sc-st"></span></div>
+    <div id="sc-res"></div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="sc-go" disabled>Appliquer la sélection</button></footer>`,{wide:"xl"});
+  let R=null;
+  $("#sc-file",m).onchange=async e=>{const f=e.target.files[0];if(!f)return;const st=$("#sc-st",m),err=m.querySelector(".err");err.textContent="";st.textContent="Lecture du fichier…";$("#sc-res",m).innerHTML="";$("#sc-go",m).disabled=true;
+    try{await loadLib("xlsx");const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+      const hi=aoa.findIndex(r=>r&&r.some(c=>nrm(c)==="STOCK")&&r.some(c=>nrm(c)==="ARTICLE"));if(hi<0)throw{message:"Colonnes introuvables : la ligne d'en-tête doit contenir « Stock » et « Article »."};
+      const H=aoa[hi].map(nrm),ci=re=>H.findIndex(h=>re.test(h));const C={dep:ci(/^STOCK$/),grp:ci(/^GROUPE/),num:ci(/^N ?ARTICLE|^NO ARTICLE|^N$/),art:ci(/^ARTICLE$/),q:ci(/DISPO|QTE|QUANTITE|STOCK ACT/)};
+      if(C.dep<0||C.art<0||C.q<0)throw{message:"Il manque une colonne : Stock, Article ou Dispo."};
+      st.textContent="Comparaison avec le stock de l'appli…";await new Promise(r=>setTimeout(r,30));
+      R=analyseStock(aoa.slice(hi+1),C);drawStock();st.textContent=f.name;
+    }catch(x){st.textContent="";err.textContent=(x&&x.message)||String(x)}};
+  function analyseStock(rows,C){
+    const dm=depByName(),match=buildMatcher(),agg=new Map(),unk=new Map(),mm=new Map();
+    for(const r of rows){if(!r)continue;const dn=String(r[C.dep]??"").trim(),an=String(r[C.art]??"").trim();if(!dn||!an)continue;
+      const q=+String(r[C.q]??0).replace(",",".")||0,dk=nrm(dn);const did=dm.get(dk);if(!did){const u=unk.get(dk)||{nom:dn.replace(/\s+/g," ").toUpperCase(),n:0,q:0};u.n++;u.q+=q;unk.set(dk,u)}
+      const key=nrm(an);let a=agg.get(key);if(!a){a={nom:an.replace(/\s+/g," ").trim().toUpperCase(),grp:{},num:"",deps:new Map()};agg.set(key,a)}
+      const g=String(r[C.grp]??"").trim();if(g)a.grp[g]=(a.grp[g]||0)+1;if(!a.num&&C.num>=0&&r[C.num]!=null&&String(r[C.num]).trim())a.num=String(r[C.num]).trim();
+      a.deps.set(dk,{dn,did,q:(a.deps.get(dk)?.q||0)+q})}
+    const ecarts=[],creer=[],multi=new Map(),pairs=new Map();let ok=0,nLines=0;
+    for(const[k,a]of agg){const hit=match(a.nom,a.num);a.grpName=Object.entries(a.grp).sort((x,y)=>y[1]-x[1])[0]?.[0]||"AUTRES MATERIELS";
+      if(hit){(multi.get(hit.aid)||multi.set(hit.aid,[]).get(hit.aid)).push(a.nom);
+        for(const[dk,v]of a.deps){nLines++;if(!v.did)continue;const pk=hit.aid+"__"+v.did;const pr=pairs.get(pk)||{aid:hit.aid,did:v.did,xl:0,names:[],how:hit.how};pr.xl+=v.q;if(!pr.names.includes(a.nom))pr.names.push(a.nom);pairs.set(pk,pr)}}
+      else{let tot=0,nz=0;for(const v of a.deps.values()){tot+=v.q;if(v.q)nz++}creer.push({...a,tot,nz,on:true})}}
+    for(const pr of pairs.values()){const cur=qty(pr.aid,pr.did);if(Math.abs(cur-pr.xl)>1e-9)ecarts.push({aid:pr.aid,how:pr.how,xnom:pr.names.join(" + "),did:pr.did,app:cur,xl:pr.xl,on:false});else ok++}
+    const merged=[...multi.entries()].filter(([,v])=>v.length>1);
+    return{ecarts,creer,unk:[...unk.values()],ok,nLines,merged,withZero:true,tab:"ec",fdep:""};
+  }
+  function drawStock(){
+    const dm=D(),a=A(),box=$("#sc-res",m),cz=R.creer.filter(c=>R.withZero||c.nz),selE=R.ecarts.filter(e=>e.on).length,selC=cz.filter(c=>c.on).length,selD=R.unk.filter(u=>u.on).length;
+    const ecs=R.ecarts.filter(e=>!R.fdep||e.did===R.fdep);
+    box.innerHTML=`<div class="kpis iv-kpis"><div class="kpi"><span class="eyebrow">Lignes conformes</span><b class="iv-good">${R.ok}</b><span class="sub">même quantité que l'Excel</span></div><div class="kpi ${R.ecarts.length?"alert":""}"><span class="eyebrow">Écarts</span><b>${R.ecarts.length}</b><span class="sub">article / dépôt différent</span></div><div class="kpi"><span class="eyebrow">Articles à créer</span><b>${R.creer.length}</b><span class="sub">${R.creer.filter(c=>c.nz).length} avec stock · ${R.creer.filter(c=>!c.nz).length} à 0</span></div><div class="kpi ${R.unk.length?"alert":""}"><span class="eyebrow">Dépôts inconnus</span><b>${R.unk.length}</b><span class="sub">${R.unk.map(u=>esc(u.nom)).join(", ")||"aucun"}</span></div></div>
+     <div class="seg" role="group" style="align-self:flex-start;flex-wrap:wrap"><button data-tab="ec" aria-pressed="${R.tab==="ec"}">Écarts (${R.ecarts.length})</button><button data-tab="cr" aria-pressed="${R.tab==="cr"}">Articles à créer (${cz.length})</button><button data-tab="dp" aria-pressed="${R.tab==="dp"}">Dépôts inconnus (${R.unk.length})</button>${R.merged.length?`<button data-tab="mg" aria-pressed="${R.tab==="mg"}">Regroupements (${R.merged.length})</button>`:""}</div>
+     <div id="sc-tab"></div>`;
+    const t=$("#sc-tab",box);
+    if(R.tab==="ec"){const deps=[...new Set(R.ecarts.map(e=>e.did))];
+      t.innerHTML=R.ecarts.length?`<div class="trx-filters"><select id="sc-fd"><option value="">Tous les dépôts</option>${deps.map(id=>`<option value="${id}" ${R.fdep===id?"selected":""}>${esc(dm[id]?.nom||id)}</option>`).join("")}</select><button class="btn sm" id="sc-all">Tout cocher</button><button class="btn sm ghost" id="sc-none">Tout décocher</button><span class="hint">${selE} coché${selE>1?"s":""} : le stock sera aligné sur l'Excel (mouvement « Inventaire »)</span></div>
+       <p class="lock warn" style="margin:0">Attention : si des transferts ou mouvements ont eu lieu depuis l'export Excel, l'écart est normal. Ne cochez que les lignes que l'Excel doit corriger.</p>
+       <div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th></th><th>Dépôt</th><th>Article (appli)</th><th>Nom dans l'Excel</th><th class="r">Appli</th><th class="r">Excel</th><th class="r">Écart</th></tr></thead><tbody>${ecs.slice(0,1500).map((e,i)=>{const ar=a[e.aid],s=photoSrc(ar),d=e.xl-e.app;return`<tr><td><input type="checkbox" data-ec="${R.ecarts.indexOf(e)}" ${e.on?"checked":""}></td><td>${esc(dm[e.did]?.nom||"")}</td><td><div class="artcell">${s?`<img class="thumb" src="${esc(s)}" alt="" loading="lazy">`:`<span class="thumb"></span>`}<div><b>${esc(ar?.nom||"")}</b><div class="hint">${esc(e.how)}</div></div></div></td><td class="hint">${esc(e.xnom)}</td><td class="r num">${fmt(e.app)}</td><td class="r num"><b>${fmt(e.xl)}</b></td><td class="r num ${d>0?"iv-good":"iv-bad"}"><b>${d>0?"+":""}${fmt(d)}</b></td></tr>`}).join("")}</tbody></table></div>`:`<p class="lock">✓ Aucun écart : pour tous les articles reconnus, le stock de l'appli est identique à l'Excel.</p>`;
+      const fd=$("#sc-fd",t);if(fd)fd.onchange=e=>{R.fdep=e.target.value;drawStock()};
+      const sa=$("#sc-all",t);if(sa)sa.onclick=()=>{ecs.forEach(e=>e.on=true);drawStock()};const sn=$("#sc-none",t);if(sn)sn.onclick=()=>{ecs.forEach(e=>e.on=false);drawStock()};
+      t.querySelectorAll("[data-ec]").forEach(c=>c.onchange=()=>{R.ecarts[+c.dataset.ec].on=c.checked;upd()})}
+    else if(R.tab==="cr"){const gm=grpByName();
+      t.innerHTML=`<div class="trx-filters"><label class="check"><input type="checkbox" id="sc-z" ${R.withZero?"checked":""}> Créer aussi les articles dont le stock est 0 partout (catalogue complet)</label><button class="btn sm" id="sc-call">Tout cocher</button><button class="btn sm ghost" id="sc-cnone">Tout décocher</button><span class="hint">${selC} article${selC>1?"s":""} sera${selC>1?"ont":""} créé${selC>1?"s":""} sans photo (vous pourrez l'ajouter ensuite)</span></div>
+       <div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th></th><th>Article</th><th>N°</th><th>Groupe</th><th>Stock par dépôt</th><th class="r">Total</th></tr></thead><tbody>${cz.slice(0,3000).map(c=>`<tr><td><input type="checkbox" data-cr="${R.creer.indexOf(c)}" ${c.on?"checked":""}></td><td><b>${esc(c.nom)}</b></td><td class="mono hint">${esc(c.num||"")}</td><td>${esc(c.grpName.toUpperCase())}${gm.has(nrm(c.grpName))?"":` <span class="chip">nouveau</span>`}</td><td class="hint">${[...c.deps.values()].filter(v=>v.q).map(v=>`${esc(v.dn)} : <b>${fmt(v.q)}</b>`).join(" · ")||"stock 0"}</td><td class="r num ${c.tot<0?"iv-bad":""}"><b>${fmt(c.tot)}</b></td></tr>`).join("")}</tbody></table></div>`;
+      $("#sc-z",t).onchange=e=>{R.withZero=e.target.checked;drawStock()};
+      $("#sc-call",t).onclick=()=>{cz.forEach(c=>c.on=true);drawStock()};$("#sc-cnone",t).onclick=()=>{cz.forEach(c=>c.on=false);drawStock()};
+      t.querySelectorAll("[data-cr]").forEach(c=>c.onchange=()=>{R.creer[+c.dataset.cr].on=c.checked;upd()})}
+    else if(R.tab==="dp"){t.innerHTML=R.unk.length?`<p class="hint" style="margin:0">Ces dépôts figurent dans l'Excel mais pas dans l'appli. Cochez-les pour les créer (sinon leurs lignes sont ignorées).</p><div class="list">${R.unk.map((u,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-dp="${i}" ${u.on?"checked":""}><div class="t"><b>${esc(u.nom)}</b><span>${u.n} lignes · ${fmt(u.q)} unités · hôtel : ${hotelOf(u.nom)==="LES2"?"commun":hotelOf(u.nom)}</span></div></label>`).join("")}</div>`:`<p class="lock">✓ Tous les dépôts de l'Excel existent dans l'appli.</p>`;
+      t.querySelectorAll("[data-dp]").forEach(c=>c.onchange=()=>{R.unk[+c.dataset.dp].on=c.checked;upd()})}
+    else{t.innerHTML=`<p class="hint" style="margin:0">Plusieurs noms de l'Excel ont été reconnus comme un même article de l'appli. Vérifiez qu'il s'agit bien du même article.</p><div class="tablewrap"><table><thead><tr><th>Article (appli)</th><th>Noms dans l'Excel</th></tr></thead><tbody>${R.merged.map(([aid,ns])=>`<tr><td><b>${esc(a[aid]?.nom||"")}</b></td><td class="hint">${ns.map(esc).join("<br>")}</td></tr>`).join("")}</tbody></table></div>`}
+    box.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{R.tab=b.dataset.tab;drawStock()});
+    upd();
+  }
+  function upd(){const cz=R.creer.filter(c=>(R.withZero||c.nz)&&c.on).length,e=R.ecarts.filter(x=>x.on).length,d=R.unk.filter(u=>u.on).length;const b=$("#sc-go",m);b.disabled=!(cz||e||d);b.textContent=`Appliquer : ${cz} création${cz>1?"s":""} · ${e} correction${e>1?"s":""}${d?` · ${d} dépôt${d>1?"s":""}`:""}`}
+  $("#sc-go",m).onclick=()=>{const b=$("#sc-go",m);confirmInline(b,"Confirmer l'application ?",()=>guard(m,async()=>{
+    const upd={},now=Date.now(),dm=depByName(),newDep={};
+    for(const u of R.unk.filter(u=>u.on)){let id=slug(u.nom);while(S.depots.some(d=>d.id===id))id+="-2";upd["data/depots/"+id]={nom:u.nom,hotel:hotelOf(u.nom),emplacement:""};newDep[nrm(u.nom)]=id;dm.set(nrm(u.nom),id)}
+    const list=R.creer.filter(c=>(R.withZero||c.nz)&&c.on);
+    const gids=await ensureGroups([...new Set(list.map(c=>c.grpName))],upd);let nA=0,nS=0;
+    for(const c of list){const id=db.collection("articles").doc().id;const ds=[...c.deps.entries()].map(([dk,v])=>({did:v.did||dm.get(dk),q:v.q})).filter(x=>x.did);
+      const hs=new Set(ds.map(x=>D()[x.did]?.hotel||(Object.values(newDep).includes(x.did)?hotelOf(x.did):"LES2")).filter(h=>h!=="LES2"));
+      upd["data/articles/"+id]={code:c.num?String(c.num).toUpperCase():nextArtCode(),nom:c.nom,groupeId:gids[nrm(c.grpName)]||"",uniteId:S.unites.some(u=>u.id==="pce")?"pce":(S.unites[0]?.id||""),hotel:hs.size===1?[...hs][0]:"LES2",seuil:0,reference:"",description:"IMPORT STOCKS DISPO",depotDefaut:ds[0]?.did||"",cree:now,maj:now,par:myId||null};nA++;
+      for(const x of ds)if(x.q){upd["data/stock/"+id+"__"+x.did]={articleId:id,depotId:x.did,qte:x.q,maj:now,source:"STOCKS DISPO"};nS++}}
+    b.textContent="Enregistrement…";await batchWrite(upd,(i,n)=>{b.textContent=`Enregistrement… ${i} / ${n}`});
+    const ecs=R.ecarts.filter(e=>e.on);let k=0;
+    for(const e of ecs){k++;b.textContent=`Corrections… ${k} / ${ecs.length}`;await recordMove({type:"inventaire",articleId:e.aid,depotId:e.did,qte:e.xl,date:today(),note:"ALIGNEMENT SUR ETAT DE STOCK EXCEL"})}
+    closeModal();toast(`Terminé : ${nA} article${nA>1?"s":""} créé${nA>1?"s":""} (${nS} stocks), ${ecs.length} correction${ecs.length>1?"s":""}`);
+  }))};
+}
+
+/* ===== B. Réception fournisseur (facture / BL) depuis un PDF ou un Excel au format modèle ===== */
+const REC_COLS=["Stock","Groupe Articles","N° Article","Article","QTE","Unité Base","A CRÉER","PHOTO"];
+function parseRecHeader(lines){const h={fournisseur:"",facture:"",factureDate:"",bl:"",blDate:""};
+  for(const raw of lines){const l=String(raw||"").replace(/\s+/g," ").trim();if(!l)continue;let r;
+    if((r=/^FACTURE\s*(?:N°|N°|NO|N)?\s*[:.]?\s*(.+?)(?:\s+DU\s+(.+))?$/i.exec(l))&&!h.facture){h.facture=r[1].trim();h.factureDate=(r[2]||"").trim()}
+    else if((r=/^(?:BL|BON DE LIVRAISON)\s*(.+?)(?:\s+DU\s+(.+))?$/i.exec(l))&&!h.bl){h.bl=r[1].replace(/\bN°\s*/i,"").trim();h.blDate=(r[2]||"").trim()}
+    else if(!h.fournisseur&&!/^stock\b/i.test(l))h.fournisseur=l}
+  return h}
+async function shrinkData(src,max=640){const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});const c=shrink(img,max);return c.toDataURL("image/jpeg",.85)}
+function trimCanvas(cv){const x=cv.getContext("2d"),{width:w,height:h}=cv,d=x.getImageData(0,0,w,h).data,ink=(i,y)=>{const p=(y*w+i)*4;return d[p+3]>20&&(d[p]<235||d[p+1]<235||d[p+2]<235)};
+  /* ignore les traits de bordure du tableau (lignes ou colonnes presque pleines et fines) */
+  const rowN=new Uint32Array(h),colN=new Uint32Array(w);for(let y=0;y<h;y++)for(let i=0;i<w;i++)if(ink(i,y)){rowN[y]++;colN[i]++}
+  const lineR=y=>rowN[y]>w*.85&&(y<2||rowN[y-2]<w*.6||y>h-3||rowN[y+2]<w*.6),lineC=i=>colN[i]>h*.85&&(i<2||colN[i-2]<h*.6||i>w-3||colN[i+2]<h*.6);
+  let x0=w,y0=h,x1=-1,y1=-1;for(let y=0;y<h;y++){if(lineR(y))continue;for(let i=0;i<w;i++){if(lineC(i)||!ink(i,y))continue;if(i<x0)x0=i;if(i>x1)x1=i;if(y<y0)y0=y;if(y>y1)y1=y}}
+  if(x1<0||x1-x0<12||y1-y0<12)return null;const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;o.getContext("2d").drawImage(cv,x0,y0,o.width,o.height,0,0,o.width,o.height);return o}
+async function parseRecPdf(file,onp){
+  await loadLib("pdf");const L=window.pdfjsLib;L.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const doc=await L.getDocument({data:await file.arrayBuffer()}).promise;let cols=null;const head=[],rows=[];
+  for(let p=1;p<=doc.numPages;p++){onp&&onp(p,doc.numPages);const page=await doc.getPage(p),vp=page.getViewport({scale:1}),tc=await page.getTextContent();
+    const it=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str.trim(),x:i.transform[4],y:vp.height-i.transform[5]}));
+    const lines=[];for(const i of it.sort((a,b)=>a.y-b.y||a.x-b.x)){let l=lines.find(l=>Math.abs(l.y-i.y)<2.5);if(!l)lines.push(l={y:i.y,it:[]});l.it.push(i)}
+    lines.forEach(l=>l.it.sort((a,b)=>a.x-b.x));let start=0;
+    if(!cols){const hl=lines.findIndex(l=>l.it.some(i=>/^stock/i.test(i.s))&&l.it.some(i=>/^QTE/i.test(i.s)));if(hl<0)continue;
+      const t=lines[hl].it,fx=re=>t.find(i=>re.test(i.s))?.x;
+      const artX=t.filter(i=>/ARTICLE/i.test(i.s)).map(i=>i.x).sort((a,b)=>b-a)[0];
+      cols={stock:fx(/^stock/i),groupe:fx(/^groupe/i),num:fx(/^N°|^N /i),art:artX,qte:fx(/^QTE/i),unite:fx(/^unit/i),creer:fx(/^A\b|^A CR|CR[EÉ]ER/i),photo:fx(/^PHOTO/i)};
+      if(cols.num!=null&&cols.art!=null&&cols.num>=cols.art)cols.num=null;
+      for(const l of lines.slice(0,hl))head.push(l.it.map(i=>i.s).join(" "));start=hl+1}
+    const order=Object.entries(cols).filter(([,x])=>x!=null).sort((a,b)=>a[1]-b[1]);
+    const colOf=x=>{let c=order[0][0];for(const[k,cx]of order)if(x>=cx-3)c=k;return c};
+    const pageRows=[];
+    for(const l of lines.slice(start)){const cell={};for(const i of l.it){const c=colOf(i.x);cell[c]=(cell[c]?cell[c]+" ":"")+i.s}
+      if(cell.qte||cell.stock){pageRows.push({y:l.y,cell})}else if(cell.art&&pageRows.length&&l.y-pageRows[pageRows.length-1].y<14)pageRows[pageRows.length-1].cell.art+=" "+cell.art}
+    if(pageRows.length&&cols.photo!=null){const sc=2.5,cv=document.createElement("canvas"),v2=page.getViewport({scale:sc});cv.width=v2.width;cv.height=v2.height;const cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,cv.width,cv.height);
+      await page.render({canvasContext:cx,viewport:v2}).promise;
+      /* emplacement exact des images (opérateurs PDF) */
+      const boxes=[];try{const ol=await page.getOperatorList(),O=L.OPS,U=L.Util;let ctm=[1,0,0,1,0,0];const st=[];
+        for(let k=0;k<ol.fnArray.length;k++){const f=ol.fnArray[k],ar=ol.argsArray[k];
+          if(f===O.save)st.push(ctm.slice());else if(f===O.restore)ctm=st.pop()||[1,0,0,1,0,0];else if(f===O.transform)ctm=U.transform(ctm,ar);
+          else if(f===O.paintImageXObject||f===O.paintJpegXObject||f===O.paintInlineImageXObject||f===O.paintImageXObjectRepeat){const m2=U.transform(v2.transform,ctm),pts=[[0,0],[1,0],[0,1],[1,1]].map(([u,v])=>[m2[0]*u+m2[2]*v+m2[4],m2[1]*u+m2[3]*v+m2[5]]);
+            const xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]),bx={x0:Math.max(0,Math.min(...xs)),x1:Math.min(cv.width,Math.max(...xs)),y0:Math.max(0,Math.min(...ys)),y1:Math.min(cv.height,Math.max(...ys))};
+            if(bx.x1-bx.x0>8&&bx.y1-bx.y0>8&&bx.x0>=(cols.photo-6)*sc)boxes.push(bx)}}}catch(e){}
+      const band=i=>[(pageRows[i].y-8)*sc,(i+1<pageRows.length?pageRows[i+1].y-8:vp.height)*sc];
+      pageRows.forEach((r,i)=>{const[t,bm]=band(i);let best=null;for(const bx of boxes){const cy=(bx.y0+bx.y1)/2;if(cy>=t&&cy<bm&&(!best||(bx.x1-bx.x0)*(bx.y1-bx.y0)>(best.x1-best.x0)*(best.y1-best.y0)))best=bx}
+        let c=document.createElement("canvas");
+        if(best){const ins=Math.min(4,(best.x1-best.x0)/20,(best.y1-best.y0)/20);c.width=Math.round(best.x1-best.x0-2*ins);c.height=Math.round(best.y1-best.y0-2*ins);c.getContext("2d").drawImage(cv,best.x0+ins,best.y0+ins,c.width,c.height,0,0,c.width,c.height)}
+        else{const x0=(cols.photo-3)*sc,w=cv.width-x0-4,h=bm-t;if(w<10||h<10)return;c.width=w;c.height=h;c.getContext("2d").drawImage(cv,x0,t,w,h,0,0,w,h);c=trimCanvas(c);if(!c)return}
+        const o=shrink(c,640);r.photo=o.toDataURL("image/jpeg",.86)})}
+    for(const r of pageRows)rows.push({depot:r.cell.stock||"",groupe:r.cell.groupe||"",num:r.cell.num||"",nom:r.cell.art||"",qte:r.cell.qte||"",unite:r.cell.unite||"",creer:r.cell.creer||"",photo:r.photo||null})}
+  if(!cols)throw{message:"Le PDF ne contient pas la ligne d'en-tête attendue (Stock · Groupe Articles · N° Article · Article · QTE · Unité Base · A CRÉER · PHOTO)."};
+  return{head:parseRecHeader(head),rows};
+}
+async function parseRecXlsx(file){
+  await loadLib("xlsx");const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:"array"}),sn=wb.SheetNames[0],ws=wb.Sheets[sn];
+  const r0=ws["!ref"]?XLSX.utils.decode_range(ws["!ref"]).s.r:0,aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true,blankrows:true});
+  const hi=aoa.findIndex(r=>r&&r.some(c=>nrm(c)==="STOCK")&&r.some(c=>/^QTE/.test(nrm(c))));if(hi<0)throw{message:"Ligne d'en-tête introuvable (Stock · Groupe Articles · N° Article · Article · QTE · Unité Base · A CRÉER · PHOTO)."};
+  const H=aoa[hi].map(nrm),ci=re=>H.findIndex(h=>re.test(h)),C={dep:ci(/^STOCK$/),grp:ci(/^GROUPE/),num:ci(/^N ?ARTICLE|^NO ARTICLE/),art:ci(/^ARTICLE$/),q:ci(/^QTE/),u:ci(/^UNITE/),cr:ci(/CREER/)};
+  const imgs={};try{await loadLib("jszip");const z=await JSZip.loadAsync(buf),idx=wb.SheetNames.indexOf(sn)+1;
+    const rel=await z.file(`xl/worksheets/_rels/sheet${idx}.xml.rels`)?.async("string");const dr=rel&&/Target="\.\.\/drawings\/([^"]+)"/.exec(rel);
+    if(dr){const dx=new DOMParser().parseFromString(await z.file("xl/drawings/"+dr[1]).async("string"),"application/xml"),drel=await z.file("xl/drawings/_rels/"+dr[1]+".rels")?.async("string")||"";
+      const rid={};for(const m2 of drel.matchAll(/Id="([^"]+)"[^>]*Target="\.\.\/media\/([^"]+)"/g))rid[m2[1]]=m2[2];for(const m2 of drel.matchAll(/Target="\.\.\/media\/([^"]+)"[^>]*Id="([^"]+)"/g))rid[m2[2]]=m2[1];
+      for(const an of [...dx.getElementsByTagNameNS("*","twoCellAnchor"),...dx.getElementsByTagNameNS("*","oneCellAnchor")]){const fr=an.getElementsByTagNameNS("*","from")[0],row=+fr?.getElementsByTagNameNS("*","row")[0]?.textContent,bl=an.getElementsByTagNameNS("*","blip")[0];
+        const id=bl&&(bl.getAttribute("r:embed")||bl.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","embed"));const md=id&&rid[id];if(md==null||isNaN(row)||imgs[row])continue;
+        const f=z.file("xl/media/"+md);if(!f)continue;const ext=md.split(".").pop().toLowerCase(),b64=await f.async("base64");imgs[row]=await shrinkData(`data:image/${ext==="jpg"?"jpeg":ext};base64,${b64}`).catch(()=>null)}}}catch(e){}
+  const rows=[];for(let i=hi+1;i<aoa.length;i++){const r=aoa[i];if(!r||!r.some(c=>c!=null&&String(c).trim()))continue;const nom=String(r[C.art]??"").trim();if(!nom)continue;
+    rows.push({depot:String(r[C.dep]??"").trim(),groupe:C.grp>=0?String(r[C.grp]??"").trim():"",num:C.num>=0&&r[C.num]!=null?String(r[C.num]).trim():"",nom,qte:r[C.q],unite:C.u>=0?String(r[C.u]??"").trim():"",creer:C.cr>=0?String(r[C.cr]??"").trim():"",photo:imgs[r0+i]||null})}
+  return{head:parseRecHeader(aoa.slice(0,hi).map(r=>(r||[]).filter(c=>c!=null).join(" "))),rows};
+}
+async function recTemplate(){await loadLib("xlsx");const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([["NOM DU FOURNISSEUR"],["FACTURE N° XXXXXX DU JJ MOIS AAAA"],["BL N° XXXXXX DU JJ MOIS AAAA"],REC_COLS,[S.depots[0]?.nom||"NOVOTEL CUISINE MATERIEL","USTENSILE CUISINE","30001","SALADIER BÉTON Ø 26CM REF 30001",10,"Each","OUI",""]]);
+  ws["!cols"]=[{wch:32},{wch:26},{wch:14},{wch:60},{wch:8},{wch:10},{wch:9},{wch:20}];XLSX.utils.book_append_sheet(wb,ws,"Réception");
+  const n=Math.max(S.depots.length,S.groupes.length,S.unites.length),lst=[["Dépôts (colonne Stock)","Groupes d'articles","Unités","A CRÉER"]];const ds=sortedDeps(),gs=S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom));
+  for(let i=0;i<n;i++)lst.push([ds[i]?.nom||"",gs[i]?.nom||"",S.unites[i]?.nom||"",i===0?"OUI":i===1?"NON":""]);const w2=XLSX.utils.aoa_to_sheet(lst);w2["!cols"]=[{wch:40},{wch:36},{wch:12},{wch:10}];XLSX.utils.book_append_sheet(wb,w2,"Listes");
+  const w3=XLSX.utils.aoa_to_sheet([["MODÈLE D'IMPORTATION DES RÉCEPTIONS"],[""],["Ligne 1 : nom du fournisseur"],["Ligne 2 : FACTURE N° … DU …"],["Ligne 3 : BL N° … DU …"],["Ligne 4 : en-têtes (ne pas modifier) : "+REC_COLS.join(" · ")],["Stock : nom exact du dépôt qui reçoit (voir onglet Listes)"],["Groupe Articles : groupe existant, ou nouveau groupe (il sera créé)"],["N° Article : référence fournisseur (sert à reconnaître l'article)"],["Article : désignation complète"],["QTE : quantité reçue"],["Unité Base : Each, Liter, Kilogram, Meter"],["A CRÉER : OUI = nouvel article, NON = article déjà dans l'appli"],["PHOTO : collez la photo dans la cellule de la ligne (une photo par ligne)"],["Le fichier peut être importé tel quel (.xlsx) ou enregistré en PDF."]]);w3["!cols"]=[{wch:100}];XLSX.utils.book_append_sheet(wb,w3,"Mode d'emploi");
+  XLSX.writeFile(wb,"MODELE IMPORT RECEPTION.xlsx")}
+function recImport(){
+  if(!canAdmin){toast("Réservé à l'administrateur.");return}
+  const m=openModal(`<header><h2>Importer une réception (facture / BL)</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p class="hint" style="margin:0;text-transform:none">Fichier <b>PDF</b> ou <b>Excel</b> au format modèle : fournisseur, facture, BL, puis les colonnes <b>${REC_COLS.join(" · ")}</b>. Les articles « A CRÉER = OUI » sont créés avec leur photo ; les quantités entrent en stock dans le dépôt indiqué.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="file" id="ri-file" accept=".pdf,.xlsx,.xls" style="max-width:340px;text-transform:none"><button class="btn sm" id="ri-tpl">⬇ Modèle vierge (.xlsx)</button><span class="hint" id="ri-st"></span></div>
+    <div id="ri-res"></div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="ri-go" disabled>Importer la réception</button></footer>`,{wide:"xl"});
+  let R=null;
+  $("#ri-tpl",m).onclick=()=>recTemplate().catch(x=>m.querySelector(".err").textContent=x.message||String(x));
+  $("#ri-file",m).onchange=async e=>{const f=e.target.files[0];if(!f)return;const st=$("#ri-st",m),err=m.querySelector(".err");err.textContent="";$("#ri-res",m).innerHTML="";$("#ri-go",m).disabled=true;st.textContent="Lecture du fichier…";
+    try{const P=/\.pdf$/i.test(f.name)?await parseRecPdf(f,(p,n)=>st.textContent=`Lecture page ${p} / ${n}…`):await parseRecXlsx(f);
+      if(!P.rows.length)throw{message:"Aucune ligne d'article trouvée dans le fichier."};
+      const dm=depByName(),gm=grpByName(),um=unitByName(),match=buildMatcher();
+      R={head:{...P.head,date:today()},file:f.name,rows:P.rows.map(r=>{const q=+String(r.qte??"").replace(/\s/g,"").replace(",",".")||0,hit=match(r.nom,r.num),cr=/^OUI/i.test(nrm(r.creer));
+        return{...r,nom:r.nom.replace(/\s+/g," ").trim().toUpperCase(),q,did:dm.get(nrm(r.depot))||"",gid:gm.get(nrm(r.groupe))||"",uid:um.get(nrm(r.unite))||(S.unites.some(u=>u.id==="pce")?"pce":S.unites[0]?.id||""),cr,hit,mode:hit?"exist":"new",on:q>0}})};
+      st.textContent=`${f.name} · ${R.rows.length} lignes · ${R.rows.filter(r=>r.photo).length} photos`;
+      const key=nrm(R.head.fournisseur+" "+R.head.facture+" "+R.head.bl).replace(/ /g,"-").toLowerCase();R.key=key;
+      try{const s=await window.FB.get(window.FB.ref(window.FB.rdb,"data/receptions/"+key));R.deja=s.exists()?s.val():null}catch(x){}
+      const fk=nrm(R.head.facture);R.dejaMv=fk.length>=4?S.mouvements.filter(mv=>nrm(mv.note).includes(fk)||nrm(mv.numero)===fk).length:0;
+      if(R.deja||R.dejaMv)R.rows.forEach(r=>r.on=false);
+      drawRec()}catch(x){st.textContent="";err.textContent=(x&&x.message)||String(x)}};
+  function drawRec(){const a=A(),box=$("#ri-res",m),h=R.head,deps=sortedDeps(),grs=S.groupes.slice().sort((x,y)=>x.nom.localeCompare(y.nom));
+    box.innerHTML=`${R.deja?`<p class="lock warn" style="margin:0">⚠ Cette réception a déjà été importée le ${fdt(R.deja.cree)} (${R.deja.n} lignes). Importer à nouveau ajouterait les quantités une deuxième fois. Les lignes ont été décochées.</p>`:R.dejaMv?`<p class="lock warn" style="margin:0">⚠ La facture ${esc(R.head.facture)} figure déjà dans ${R.dejaMv} mouvement${R.dejaMv>1?"s":""} de stock : cette réception semble déjà enregistrée. Les lignes ont été décochées ; cochez seulement celles qui manquent.</p>`:""}
+     <div class="trx-filters"><button class="btn sm" id="ri-all">Tout cocher</button><button class="btn sm ghost" id="ri-none">Tout décocher</button></div>
+     <div class="fgrid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"><label class="f">Fournisseur<input type="text" data-h="fournisseur" value="${esc(h.fournisseur)}"></label><label class="f">Facture N°<input type="text" data-h="facture" value="${esc(h.facture)}"></label><label class="f">Date facture<input type="text" data-h="factureDate" value="${esc(h.factureDate)}"></label><label class="f">BL N°<input type="text" data-h="bl" value="${esc(h.bl)}"></label><label class="f">Date BL<input type="text" data-h="blDate" value="${esc(h.blDate)}"></label><label class="f">Date d'entrée en stock<input type="date" data-h="date" value="${esc(h.date)}"></label></div>
+     <div class="tablewrap" style="max-height:55vh;overflow:auto"><table><thead><tr><th></th><th>Photo</th><th>Article</th><th>Dépôt</th><th>Groupe</th><th class="r">Qté</th><th>Action</th></tr></thead><tbody>${R.rows.map((r,i)=>{const ex=r.hit&&a[r.hit.aid];
+       return`<tr style="${r.on?"":"opacity:.5"}"><td><input type="checkbox" data-on="${i}" ${r.on?"checked":""}></td><td>${r.photo?`<img class="thumb lg zoomable" src="${esc(r.photo)}" data-zoom="${esc(r.photo)}" data-cap="${esc(r.nom)}" alt="">`:`<span class="thumb lg"></span>`}</td>
+        <td style="min-width:220px"><b>${esc(r.nom)}</b><div class="hint mono">${esc(r.num||"")}${r.unite?" · "+esc(r.unite):""}${r.cr?' · <span class="chip">A CRÉER</span>':""}</div></td>
+        <td><select data-dep="${i}" style="min-width:170px;${r.did?"":"border-color:var(--crit)"}"><option value="">— ${esc(r.depot||"choisir")} —</option>${deps.map(d=>`<option value="${d.id}" ${d.id===r.did?"selected":""}>${esc(d.nom)}</option>`).join("")}</select></td>
+        <td>${r.mode==="new"?`<select data-grp="${i}" style="min-width:150px"><option value="">${r.groupe?"＋ créer « "+esc(r.groupe.toUpperCase())+" »":"— aucun —"}</option>${grs.map(g=>`<option value="${g.id}" ${g.id===r.gid?"selected":""}>${esc(g.nom)}</option>`).join("")}</select>`:`<span class="hint">${esc(G()[ex?.groupeId]?.nom||"")}</span>`}</td>
+        <td class="r"><input type="number" min="0" step="any" data-q="${i}" value="${r.q}" style="width:80px;text-align:right"></td>
+        <td style="min-width:200px">${ex?`<select data-mode="${i}"><option value="exist" ${r.mode==="exist"?"selected":""}>Entrée sur l'article existant</option><option value="new" ${r.mode==="new"?"selected":""}>Créer un nouvel article</option></select><div class="hint">${r.mode==="exist"?"→ "+esc(ex.nom)+" ("+esc(r.hit.how)+")":""}</div>`:`<b class="iv-good">Créer l'article</b><div class="hint">+ entrée en stock${r.photo?" avec photo":""}</div>`}</td></tr>`}).join("")}</tbody></table></div>`;
+    box.querySelectorAll("[data-h]").forEach(i=>i.oninput=()=>{R.head[i.dataset.h]=i.value.trim()});
+    $("#ri-all",box).onclick=()=>{R.rows.forEach(r=>r.on=true);drawRec()};$("#ri-none",box).onclick=()=>{R.rows.forEach(r=>r.on=false);drawRec()};
+    box.querySelectorAll("[data-on]").forEach(c=>c.onchange=()=>{R.rows[+c.dataset.on].on=c.checked;drawRec()});
+    box.querySelectorAll("[data-dep]").forEach(s=>s.onchange=()=>{R.rows[+s.dataset.dep].did=s.value;s.style.borderColor=s.value?"":"var(--crit)";updR()});
+    box.querySelectorAll("[data-grp]").forEach(s=>s.onchange=()=>{R.rows[+s.dataset.grp].gid=s.value});
+    box.querySelectorAll("[data-q]").forEach(s=>s.oninput=()=>{R.rows[+s.dataset.q].q=+s.value||0;updR()});
+    box.querySelectorAll("[data-mode]").forEach(s=>s.onchange=()=>{R.rows[+s.dataset.mode].mode=s.value;drawRec()});
+    updR()}
+  function updR(){const on=R.rows.filter(r=>r.on),nc=on.filter(r=>r.mode==="new").length,bad=on.filter(r=>!r.did||!(r.q>0)).length,b=$("#ri-go",m);
+    b.disabled=!on.length||!!bad;b.textContent=bad?`${bad} ligne${bad>1?"s":""} sans dépôt ou quantité`:`Importer : ${on.length} ligne${on.length>1?"s":""} (${nc} article${nc>1?"s":""} à créer)`}
+  $("#ri-go",m).onclick=()=>{const b=$("#ri-go",m);confirmInline(b,"Confirmer l'import ?",()=>guard(m,async()=>{
+    const h=R.head,on=R.rows.filter(r=>r.on&&r.did&&r.q>0),upd={},now=Date.now();
+    const newGrp=await ensureGroups([...new Set(on.filter(r=>r.mode==="new"&&!r.gid&&r.groupe).map(r=>r.groupe))],upd);
+    if(Object.keys(upd).length)await batchWrite(upd);
+    const note=`RECEPTION ${h.fournisseur}${h.facture?" - FACT "+h.facture:""}${h.bl?" - BL "+h.bl:""}`.toUpperCase(),lines=[];let i=0;
+    for(const r of on){i++;b.textContent=`Import ${i} / ${on.length}…`;let aid=r.mode==="exist"&&r.hit?r.hit.aid:null;
+      if(!aid){const id=db.collection("articles").doc().id;let photo=null;
+        if(r.photo&&assets){try{const blob=await (await fetch(r.photo)).blob();const up=await assets.upload(blob,{type:"image/jpeg"});photo={asset:up.id}}catch(x){}}
+        const art={code:(r.num||nextArtCode()).toUpperCase(),nom:r.nom,groupeId:r.gid||newGrp[nrm(r.groupe)]||"",uniteId:r.uid,hotel:D()[r.did]?.hotel||"LES2",seuil:0,reference:r.num?("REF "+r.num).toUpperCase():"",description:("FOURNISSEUR : "+h.fournisseur+(h.facture?" · FACTURE "+h.facture+(h.factureDate?" DU "+h.factureDate:""):"")+(h.bl?" · BL "+h.bl:"")).toUpperCase(),depotDefaut:r.did,photo,cree:now,maj:now,par:myId||null};
+        await db.collection("articles").doc(id).set(art);S.articles.push({id,...art});aid=id}
+      await recordMove({type:"entree",articleId:aid,depotId:r.did,qte:r.q,date:h.date||today(),note,numero:h.facture||h.bl||""},{[aid]:{nom:r.nom}});lines.push({articleId:aid,depotId:r.did,qte:r.q,cree:r.mode==="new"})}
+    await window.FB.set(window.FB.ref(window.FB.rdb,"data/receptions/"+R.key),window.FB.clean({fournisseur:h.fournisseur,facture:h.facture,factureDate:h.factureDate,bl:h.bl,blDate:h.blDate,date:h.date,fichier:R.file,n:lines.length,lignes:lines,cree:now,par:myId||null}));
+    closeModal();toast(`Réception importée : ${lines.length} ligne${lines.length>1?"s":""}, ${lines.filter(l=>l.cree).length} article${lines.filter(l=>l.cree).length>1?"s":""} créé${lines.filter(l=>l.cree).length>1?"s":""}`);
+  }))};
 }
 
 /* ---------- Inventaires : fiches par dépôt et groupes, saisie, état, validation ---------- */
