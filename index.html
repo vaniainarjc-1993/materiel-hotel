@@ -103,7 +103,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;text-align:left;padding:0}
 .card:hover{border-color:var(--muted);box-shadow:var(--shadow)}
 .ph{aspect-ratio:4/3;background:var(--surface-2);display:grid;place-items:center;color:var(--muted);max-width:100%;overflow:hidden;border-bottom:1px solid var(--line)}
-.ph img{width:100%;height:100%;object-fit:cover}
+.ph img{width:100%;height:100%;object-fit:cover;image-rendering:auto}
+.detail .ph img{object-fit:contain;background:#fff}
 .ph svg{width:38%;opacity:.5}
 .card .body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
 .card .code{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
@@ -323,7 +324,7 @@ div.f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--mu
 .trc-imgs .more{background:var(--surface-2);color:var(--muted);font-size:12px;font-weight:700}
 .trc-foot{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:600}.trc-note{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .lock{margin:0;padding:9px 12px;border-radius:8px;background:var(--ok-bg);color:var(--ok);font-size:13px;font-weight:500}.lock.warn{background:var(--warn-bg);color:var(--warn)}
-td .thumb.lg{width:56px;height:56px;object-fit:contain;background:#fff}
+td .thumb.lg{width:72px;height:72px;object-fit:contain;background:#fff}
 tfoot td{border-top:1px solid var(--line);border-bottom:0}
 .mvno{display:block;font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:3px}
 .readonly-note{background:var(--warn-bg);color:var(--warn);padding:8px 12px;border-radius:8px;font-size:13px}
@@ -1160,10 +1161,10 @@ function refForm(coll,row){
 
 /* ---------- Photo handling ---------- */
 function loadImg(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej({message:"Image illisible."});i.src=r.result};r.onerror=()=>rej({message:"Fichier illisible."});r.readAsDataURL(file)})}
-function shrink(img,max,qual){const s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);return c}
+function shrink(img,max,qual){const s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const x=c.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);return c}
 async function preparePhoto(file){
   const img=await loadImg(file);
-  if(assets){const c=shrink(img,640,.8);const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.84));const up=await assets.upload(blob,{type:"image/jpeg"});return{asset:up.id}}
+  if(assets){const c=shrink(img,1280,.86);const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.86));const up=await assets.upload(blob,{type:"image/jpeg"});return{asset:up.id}}
   // fallback for viewers without asset upload: small inline image stored in the record
   let q=.72,c=shrink(img,520,q),d=c.toDataURL("image/jpeg",q);
   while(d.length>140000&&q>.35){q-=.1;d=c.toDataURL("image/jpeg",q)}
@@ -2099,13 +2100,20 @@ function parseRecHeader(lines){const h={fournisseur:"",facture:"",factureDate:""
     else if((r=/^(?:BL|BON DE LIVRAISON)\s*(.+?)(?:\s+DU\s+(.+))?$/i.exec(l))&&!h.bl){h.bl=r[1].replace(/\bN°\s*/i,"").trim();h.blDate=(r[2]||"").trim()}
     else if(!h.fournisseur&&!/^stock\b/i.test(l))h.fournisseur=l}
   return h}
-async function shrinkData(src,max=640){const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});const c=shrink(img,max);return c.toDataURL("image/jpeg",.85)}
+async function shrinkData(src,max=1280){const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});const c=shrink(img,max);return c.toDataURL("image/jpeg",.88)}
 function trimCanvas(cv){const x=cv.getContext("2d"),{width:w,height:h}=cv,d=x.getImageData(0,0,w,h).data,ink=(i,y)=>{const p=(y*w+i)*4;return d[p+3]>20&&(d[p]<235||d[p+1]<235||d[p+2]<235)};
   /* ignore les traits de bordure du tableau (lignes ou colonnes presque pleines et fines) */
   const rowN=new Uint32Array(h),colN=new Uint32Array(w);for(let y=0;y<h;y++)for(let i=0;i<w;i++)if(ink(i,y)){rowN[y]++;colN[i]++}
   const lineR=y=>rowN[y]>w*.85&&(y<2||rowN[y-2]<w*.6||y>h-3||rowN[y+2]<w*.6),lineC=i=>colN[i]>h*.85&&(i<2||colN[i-2]<h*.6||i>w-3||colN[i+2]<h*.6);
   let x0=w,y0=h,x1=-1,y1=-1;for(let y=0;y<h;y++){if(lineR(y))continue;for(let i=0;i<w;i++){if(lineC(i)||!ink(i,y))continue;if(i<x0)x0=i;if(i>x1)x1=i;if(y<y0)y0=y;if(y>y1)y1=y}}
   if(x1<0||x1-x0<12||y1-y0<12)return null;const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;o.getContext("2d").drawImage(cv,x0,y0,o.width,o.height,0,0,o.width,o.height);return o}
+async function pdfImgCanvas(page,obj){try{let o=obj;if(typeof o==="string"){const id=o;o=await new Promise(res=>{const objs=id.startsWith("g_")?page.commonObjs:page.objs;let done=false;const t=setTimeout(()=>{if(!done)res(null)},1500);try{objs.get(id,v=>{done=true;clearTimeout(t);res(v)})}catch(e){try{done=true;clearTimeout(t);res(objs.get(id))}catch(e2){res(null)}}})}
+  if(!o)return null;const c=document.createElement("canvas"),x=c.getContext("2d");
+  if(o.bitmap){c.width=o.bitmap.width;c.height=o.bitmap.height;x.drawImage(o.bitmap,0,0);return c}
+  if(o.data&&o.width&&o.height){c.width=o.width;c.height=o.height;const n=o.width*o.height,src=o.data,id=x.createImageData(o.width,o.height),d=id.data;
+    if(src.length>=n*4)d.set(src.subarray?src.subarray(0,n*4):src.slice(0,n*4));else if(src.length>=n*3){for(let i=0,j=0,k=0;i<n;i++){d[j++]=src[k++];d[j++]=src[k++];d[j++]=src[k++];d[j++]=255}}else return null;
+    x.putImageData(id,0,0);return c}
+  return null}catch(e){return null}}
 async function parseRecPdf(file,onp){
   await loadLib("pdf");const L=window.pdfjsLib;L.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   const doc=await L.getDocument({data:await file.arrayBuffer()}).promise;let cols=null;const head=[],rows=[];
@@ -2132,13 +2140,14 @@ async function parseRecPdf(file,onp){
           if(f===O.save)st.push(ctm.slice());else if(f===O.restore)ctm=st.pop()||[1,0,0,1,0,0];else if(f===O.transform)ctm=U.transform(ctm,ar);
           else if(f===O.paintImageXObject||f===O.paintJpegXObject||f===O.paintInlineImageXObject||f===O.paintImageXObjectRepeat){const m2=U.transform(v2.transform,ctm),pts=[[0,0],[1,0],[0,1],[1,1]].map(([u,v])=>[m2[0]*u+m2[2]*v+m2[4],m2[1]*u+m2[3]*v+m2[5]]);
             const xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]),bx={x0:Math.max(0,Math.min(...xs)),x1:Math.min(cv.width,Math.max(...xs)),y0:Math.max(0,Math.min(...ys)),y1:Math.min(cv.height,Math.max(...ys))};
-            if(bx.x1-bx.x0>8&&bx.y1-bx.y0>8&&bx.x0>=(cols.photo-6)*sc)boxes.push(bx)}}}catch(e){}
+            bx.obj=ar&&ar[0];if(bx.x1-bx.x0>8&&bx.y1-bx.y0>8&&bx.x0>=(cols.photo-6)*sc)boxes.push(bx)}}}catch(e){}
       const band=i=>[(pageRows[i].y-8)*sc,(i+1<pageRows.length?pageRows[i+1].y-8:vp.height)*sc];
-      pageRows.forEach((r,i)=>{const[t,bm]=band(i);let best=null;for(const bx of boxes){const cy=(bx.y0+bx.y1)/2;if(cy>=t&&cy<bm&&(!best||(bx.x1-bx.x0)*(bx.y1-bx.y0)>(best.x1-best.x0)*(best.y1-best.y0)))best=bx}
-        let c=document.createElement("canvas");
-        if(best){const ins=Math.min(4,(best.x1-best.x0)/20,(best.y1-best.y0)/20);c.width=Math.round(best.x1-best.x0-2*ins);c.height=Math.round(best.y1-best.y0-2*ins);c.getContext("2d").drawImage(cv,best.x0+ins,best.y0+ins,c.width,c.height,0,0,c.width,c.height)}
-        else{const x0=(cols.photo-3)*sc,w=cv.width-x0-4,h=bm-t;if(w<10||h<10)return;c.width=w;c.height=h;c.getContext("2d").drawImage(cv,x0,t,w,h,0,0,w,h);c=trimCanvas(c);if(!c)return}
-        const o=shrink(c,640);r.photo=o.toDataURL("image/jpeg",.86)})}
+      for(let i=0;i<pageRows.length;i++){const r=pageRows[i];const[t,bm]=band(i);let best=null;for(const bx of boxes){const cy=(bx.y0+bx.y1)/2;if(cy>=t&&cy<bm&&(!best||(bx.x1-bx.x0)*(bx.y1-bx.y0)>(best.x1-best.x0)*(best.y1-best.y0)))best=bx}
+        let c=document.createElement("canvas");const nat=best?await pdfImgCanvas(page,best.obj):null;
+        if(nat&&nat.width>=(best.x1-best.x0)*.6){c=nat}
+        else if(best){const ins=Math.min(4,(best.x1-best.x0)/20,(best.y1-best.y0)/20);c.width=Math.round(best.x1-best.x0-2*ins);c.height=Math.round(best.y1-best.y0-2*ins);c.getContext("2d").drawImage(cv,best.x0+ins,best.y0+ins,c.width,c.height,0,0,c.width,c.height)}
+        else{const x0=(cols.photo-3)*sc,w=cv.width-x0-4,h=bm-t;if(w<10||h<10)continue;c.width=w;c.height=h;c.getContext("2d").drawImage(cv,x0,t,w,h,0,0,w,h);c=trimCanvas(c);if(!c)continue}
+        const o=shrink(c,1280);r.photo=o.toDataURL("image/jpeg",.88)}}
     for(const r of pageRows)rows.push({depot:r.cell.stock||"",groupe:r.cell.groupe||"",num:r.cell.num||"",nom:r.cell.art||"",qte:r.cell.qte||"",unite:r.cell.unite||"",creer:r.cell.creer||"",photo:r.photo||null})}
   if(!cols)throw{message:"Le PDF ne contient pas la ligne d'en-tête attendue (Stock · Groupe Articles · N° Article · Article · QTE · Unité Base · A CRÉER · PHOTO)."};
   return{head:parseRecHeader(head),rows};
@@ -2189,7 +2198,8 @@ function recImport(){
       drawRec()}catch(x){st.textContent="";err.textContent=(x&&x.message)||String(x)}};
   function drawRec(){const a=A(),box=$("#ri-res",m),h=R.head,deps=sortedDeps(),grs=S.groupes.slice().sort((x,y)=>x.nom.localeCompare(y.nom));
     box.innerHTML=`${R.deja?`<p class="lock warn" style="margin:0">⚠ Cette réception a déjà été importée le ${fdt(R.deja.cree)} (${R.deja.n} lignes). Importer à nouveau ajouterait les quantités une deuxième fois. Les lignes ont été décochées.</p>`:R.dejaMv?`<p class="lock warn" style="margin:0">⚠ La facture ${esc(R.head.facture)} figure déjà dans ${R.dejaMv} mouvement${R.dejaMv>1?"s":""} de stock : cette réception semble déjà enregistrée. Les lignes ont été décochées ; cochez seulement celles qui manquent.</p>`:""}
-     <div class="trx-filters"><button class="btn sm" id="ri-all">Tout cocher</button><button class="btn sm ghost" id="ri-none">Tout décocher</button></div>
+     <div class="trx-filters"><button class="btn sm" id="ri-all">Tout cocher</button><button class="btn sm ghost" id="ri-none">Tout décocher</button><label class="check pill"><input type="checkbox" id="ri-ph" ${R.photoOnly?"checked":""}> 📷 Mettre à jour seulement les photos (aucune entrée en stock)</label></div>
+     ${R.photoOnly?`<p class="lock" style="margin:0">Mode photos : les articles déjà dans la base reçoivent la photo de ce fichier (nouvelle qualité). Aucune quantité n'est ajoutée et rien n'est créé. Sont cochés par défaut les articles sans photo ou créés par cette même réception.</p>`:""}
      <div class="fgrid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"><label class="f">Fournisseur<input type="text" data-h="fournisseur" value="${esc(h.fournisseur)}"></label><label class="f">Facture N°<input type="text" data-h="facture" value="${esc(h.facture)}"></label><label class="f">Date facture<input type="text" data-h="factureDate" value="${esc(h.factureDate)}"></label><label class="f">BL N°<input type="text" data-h="bl" value="${esc(h.bl)}"></label><label class="f">Date BL<input type="text" data-h="blDate" value="${esc(h.blDate)}"></label><label class="f">Date d'entrée en stock<input type="date" data-h="date" value="${esc(h.date)}"></label></div>
      <div class="tablewrap" style="max-height:55vh;overflow:auto"><table><thead><tr><th></th><th>Photo</th><th>Article</th><th>Dépôt</th><th>Groupe</th><th class="r">Qté</th><th>Action</th></tr></thead><tbody>${R.rows.map((r,i)=>{const ex=r.hit&&a[r.hit.aid];
        return`<tr style="${r.on?"":"opacity:.5"}"><td><input type="checkbox" data-on="${i}" ${r.on?"checked":""}></td><td>${r.photo?`<img class="thumb lg zoomable" src="${esc(r.photo)}" data-zoom="${esc(r.photo)}" data-cap="${esc(r.nom)}" alt="">`:`<span class="thumb lg"></span>`}</td>
@@ -2199,6 +2209,8 @@ function recImport(){
         <td class="r"><input type="number" min="0" step="any" data-q="${i}" value="${r.q}" style="width:80px;text-align:right"></td>
         <td style="min-width:200px">${ex?`<select data-mode="${i}"><option value="exist" ${r.mode==="exist"?"selected":""}>Entrée sur l'article existant</option><option value="new" ${r.mode==="new"?"selected":""}>Créer un nouvel article</option></select><div class="hint">${r.mode==="exist"?"→ "+esc(ex.nom)+" ("+esc(r.hit.how)+")":""}</div>`:`<b class="iv-good">Créer l'article</b><div class="hint">+ entrée en stock${r.photo?" avec photo":""}</div>`}</td></tr>`}).join("")}</tbody></table></div>`;
     box.querySelectorAll("[data-h]").forEach(i=>i.oninput=()=>{R.head[i.dataset.h]=i.value.trim()});
+    $("#ri-ph",box).onchange=e=>{R.photoOnly=e.target.checked;const a=A(),fk=nrm(R.head.facture||"");
+      R.rows.forEach(r=>{if(R.photoOnly){const ar=r.hit&&a[r.hit.aid];r.on=!!(ar&&r.photo&&(!ar.photo||(fk.length>=4&&nrm(ar.description||"").includes(fk))))}else r.on=!(R.deja||R.dejaMv)&&r.q>0});drawRec()};
     $("#ri-all",box).onclick=()=>{R.rows.forEach(r=>r.on=true);drawRec()};$("#ri-none",box).onclick=()=>{R.rows.forEach(r=>r.on=false);drawRec()};
     box.querySelectorAll("[data-on]").forEach(c=>c.onchange=()=>{R.rows[+c.dataset.on].on=c.checked;drawRec()});
     box.querySelectorAll("[data-dep]").forEach(s=>s.onchange=()=>{R.rows[+s.dataset.dep].did=s.value;s.style.borderColor=s.value?"":"var(--crit)";updR()});
@@ -2206,9 +2218,13 @@ function recImport(){
     box.querySelectorAll("[data-q]").forEach(s=>s.oninput=()=>{R.rows[+s.dataset.q].q=+s.value||0;updR()});
     box.querySelectorAll("[data-mode]").forEach(s=>s.onchange=()=>{R.rows[+s.dataset.mode].mode=s.value;drawRec()});
     updR()}
-  function updR(){const on=R.rows.filter(r=>r.on),nc=on.filter(r=>r.mode==="new").length,bad=on.filter(r=>!r.did||!(r.q>0)).length,b=$("#ri-go",m);
+  function updR(){const b0=$("#ri-go",m);if(R.photoOnly){const n=R.rows.filter(r=>r.on&&r.hit&&r.photo&&A()[r.hit.aid]).length;b0.disabled=!n;b0.textContent=`Mettre à jour ${n} photo${n>1?"s":""}`;return}
+    const on=R.rows.filter(r=>r.on),nc=on.filter(r=>r.mode==="new").length,bad=on.filter(r=>!r.did||!(r.q>0)).length,b=$("#ri-go",m);
     b.disabled=!on.length||!!bad;b.textContent=bad?`${bad} ligne${bad>1?"s":""} sans dépôt ou quantité`:`Importer : ${on.length} ligne${on.length>1?"s":""} (${nc} article${nc>1?"s":""} à créer)`}
-  $("#ri-go",m).onclick=()=>{const b=$("#ri-go",m);confirmInline(b,"Confirmer l'import ?",()=>guard(m,async()=>{
+  $("#ri-go",m).onclick=()=>{const b=$("#ri-go",m);confirmInline(b,R.photoOnly?"Confirmer la mise à jour des photos ?":"Confirmer l'import ?",()=>guard(m,async()=>{
+    if(R.photoOnly){if(!assets)throw{message:"Envoi de photos indisponible pour ce compte."};const rows=R.rows.filter(r=>r.on&&r.hit&&r.photo&&A()[r.hit.aid]),upd={},now=Date.now();let k=0;
+      for(const r of rows){k++;b.textContent=`Photos ${k} / ${rows.length}…`;const blob=await (await fetch(r.photo)).blob();const up=await assets.upload(blob,{type:"image/jpeg"});upd["data/articles/"+r.hit.aid+"/photo"]={asset:up.id};upd["data/articles/"+r.hit.aid+"/maj"]=now}
+      await batchWrite(upd);closeModal();toast(`${rows.length} photo${rows.length>1?"s":""} mise${rows.length>1?"s":""} à jour`);return}
     const h=R.head,on=R.rows.filter(r=>r.on&&r.did&&r.q>0),upd={},now=Date.now();
     const newGrp=await ensureGroups([...new Set(on.filter(r=>r.mode==="new"&&!r.gid&&r.groupe).map(r=>r.groupe))],upd);
     if(Object.keys(upd).length)await batchWrite(upd);
