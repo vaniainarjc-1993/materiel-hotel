@@ -305,7 +305,7 @@ div.f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--mu
 .sh-arts{font-size:10.5px;color:#555;text-transform:uppercase;margin:1px 0 4px}
 .sh-req li{margin-bottom:2px;font-size:13px}
 .sh-date{margin:6px 0 10px;font-size:13px}.sh-line{display:inline-block;min-width:180px;border-bottom:1px solid #555;height:14px;vertical-align:bottom}
-.sh-sign{grid-template-columns:repeat(3,minmax(0,1fr))!important}.sh-sign>div{border:0!important;min-height:0!important;padding:0 4px!important}.sh-sign .sh-h{font-size:13px}.sh-sign p{margin:12px 0 0!important;font-size:12.5px!important}.sh-sign .sh-line{min-width:150px}
+.sh-sign{grid-template-columns:repeat(3,minmax(0,1fr))!important}.sh-sign.five{grid-template-columns:repeat(5,minmax(0,1fr))!important}.sh-sign.five .sh-line{min-width:70px!important;width:calc(100% - 4px)}.sh-sign.five p{display:flex;flex-direction:column;gap:2px}.sh-sign>div{border:0!important;min-height:0!important;padding:0 4px!important}.sh-sign .sh-h{font-size:13px}.sh-sign p{margin:12px 0 0!important;font-size:12.5px!important}.sh-sign .sh-line{min-width:150px}
 .sh-t th.sh-ph{width:70px}.sh-t td.sh-ph{width:70px;text-align:center;vertical-align:middle;padding:3px}.sh-t td.sh-ph img{width:62px;height:62px;object-fit:contain;display:block;margin:0 auto}.sh-noph{color:#999}
 .sh-t td{vertical-align:middle}
 .sh-head{position:relative;justify-content:center!important}.sh-center{text-align:center;padding:0 170px}.sh-head .sh-st{position:absolute;right:0;top:0}
@@ -1521,6 +1521,7 @@ function transferView(t){
 
 /* ---------- Fiche de sortie (aperçu, impression, PDF) ---------- */
 const SIGNATAIRES=["Responsable Événement","Contrôleur Interne","Sécurité"];
+const SIGN_DECL=[["Département concerné"],["Cost Control"],["Direction Générale",1],["Contrôleur interne"],["Sécurité"]];
 const isPonct=t=>t.type==="ponctuel";
 const evtTxt=t=>{const a=[t.evtDate?fdate(t.evtDate):"",t.evtNom||""].filter(Boolean).join(" - ");return a||t.note||"—"};
 const typeTxt=t=>isPonct(t)?`PONCTUEL — À RETOURNER${t.dateRetour?" LE "+fdate(t.dateRetour):""}`:"PERMANENT";
@@ -1537,7 +1538,8 @@ function sheetData(t){
 function transferSheet(t,unsaved){
   resolveNames([t.creePar,t.validePar]);
   const d=sheetData(t),st=d.valide?"VALIDÉ":"BROUILLON";
-  const signBlock=lbl=>`<div class="sh-date">${lbl} : <span class="sh-line"></span></div><div class="sh-sign">${SIGNATAIRES.map(s=>`<div><div class="sh-h">${esc(s)}</div><p>Nom : <span class="sh-line"></span></p><p>Signature : <span class="sh-line"></span></p></div>`).join("")}</div>`;
+  const SG=d.decl?SIGN_DECL:SIGNATAIRES.map(s=>[s]);
+  const signBlock=lbl=>`<div class="sh-date">${lbl} : <span class="sh-line"></span></div><div class="sh-sign${d.decl?" five":""}">${SG.map(([s,rec])=>`<div><div class="sh-h">${esc(s)}</div><p>Nom : <span class="sh-line"></span></p><p>Signature : <span class="sh-line"></span></p>${rec?`<p>Recommandation : <span class="sh-line"></span></p><p><span class="sh-line" style="width:100%"></span></p>`:""}</div>`).join("")}</div>`;
   const html=`<div class="sheet" id="sheet">
     <div class="sh-head"><div class="sh-center"><div class="sh-title">${d.titre}</div><div class="sh-sub">${d.sub} <b>${esc(t.numero)}</b></div></div><div class="sh-st ${d.valide?"ok":"dr"}">${st}</div></div>
     <div class="sh-info"><div><span>Date</span><b>${fdate(t.date)}</b></div><div><span>${d.decl?"Dépôt PERTES MATERIEL":"Dépôt destinataire"}</span><b>${esc(d.dest)}</b></div>${d.decl?`<div><span>Nature (à cocher)</span><b class="sh-nat">${t.nature==="casse"?"☒":"☐"} CASSE &nbsp; ${t.nature==="perte"?"☒":"☐"} PERTE</b></div>`:`<div><span>Type de transfert</span><b class="${d.ponct?"sh-pc":""}">${esc(typeTxt(t))}</b></div>`}<div><span>Date de l'événement - Nom de l'événement</span><b>${esc(evtTxt(t))}</b></div><div><span>${d.valide?"Validé le":"Créé le"}</span><b>${d.valide?fdt(t.valideLe):(t.cree?fdt(t.cree):"—")}${d.valide&&names[t.validePar]?" · "+esc(names[t.validePar]):""}</b></div></div>
@@ -1605,8 +1607,10 @@ async function sheetPdf(t,d){const imgs=await loadPdfImgs(d),usedImg=new Set();
   need(30);text(M,y,`RÉQUISITION À FAIRE SUR MC : ${d.reqs.length}`,10,true);y+=15;
   d.reqs.forEach((r,i)=>{need(14);const a0=`${i+1}.  `;text(M+8,y,a0,9.5);text(M+8+pdfW(a0,9.5),y,r.dep,9.5,true);const ax=M+8+pdfW(a0,9.5)+pdfW(r.dep,9.5,true)+6;ops.push("0.8 w");line(ax,y-3.2,ax+14,y-3.2);line(ax+14,y-3.2,ax+10,y-6);line(ax+14,y-3.2,ax+10,y-0.4);ops.push("0.5 w");text(ax+20,y,d.dest,9.5,true);text(ax+20+pdfW(d.dest,9.5,true)+8,y,"(Référence LA sur MC N°.............................................)",9.5,"i");y+=14});y+=6;
   need(62);text(M,y,"COMMENTAIRES / OBSERVATIONS :",10,true);y+=5;col(140,140,140);rect(M,y,TW,46);for(let k=1;k<3;k++){col(215,215,215);line(M+8,y+k*15.3,W-M-8,y+k*15.3)}col(0,0,0);y+=60;
-  const signBlock=lbl=>{need(66);text(M,y,lbl+" :",10,false);col(120,120,120);line(M+pdfW(lbl+" :",10)+6,y+2,M+pdfW(lbl+" :",10)+170,y+2);col(0,0,0);y+=18;
-    const sw=TW/3;SIGNATAIRES.forEach((s,i)=>{const x=M+i*sw;text(x,y,s,10,true);text(x,y+17,"Nom :",9);text(x,y+35,"Signature :",9);col(120,120,120);line(x+32,y+19,x+sw-30,y+19);line(x+56,y+37,x+sw-30,y+37);col(0,0,0)});y+=48};
+  const signBlock=lbl=>{need(d.decl?100:66);text(M,y,lbl+" :",10,false);col(120,120,120);line(M+pdfW(lbl+" :",10)+6,y+2,M+pdfW(lbl+" :",10)+170,y+2);col(0,0,0);y+=18;
+    const SG=d.decl?SIGN_DECL:SIGNATAIRES.map(s=>[s]),sw=TW/SG.length,gap=d.decl?10:30;let hh=48;
+    SG.forEach(([s,rec],i)=>{const x=M+i*sw;text(x,y,s,10,true);text(x,y+17,"Nom :",9);text(x,y+35,"Signature :",9);col(120,120,120);line(x+32,y+19,x+sw-gap,y+19);line(x+56,y+37,x+sw-gap,y+37);col(0,0,0);
+      if(rec){text(x,y+53,"Recommandation :",9);col(120,120,120);line(x+80,y+55,x+sw-gap,y+55);line(x,y+71,x+sw-gap,y+71);col(0,0,0);hh=80}});y+=hh};
   signBlock(d.dateLbl);
   if(d.ponct){y+=4;signBlock("Date de retour"+(t.dateRetour?` (prévue le ${fdate(t.dateRetour)})`:""))}
   const np=pages.length;pages.forEach((p,i)=>{ops=p;col(110,110,110,true);text(M,H-14,`${d.titre} — N° ${t.numero} — ${st}${d.decl?"":" — "+typeTxt(t)}`,7.5);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${np}`,7.5,false,"right");col(0,0,0,true)});
@@ -2256,7 +2260,7 @@ const invLines=t=>{const a=A(),g=G();return Object.entries(t.lignes||{}).map(([a
 const hasC=l=>l.c!==undefined&&l.c!==null&&l.c!=="";
 function invStats(t){let n=0,c=0,e=0,pos=0,neg=0;for(const l of Object.values(t.lignes||{})){n++;if(hasC(l)){c++;const d=(+l.c)-(+l.th||0);if(Math.abs(d)>1e-9){e++;if(d>0)pos+=d;else neg+=d}}}return{n,c,e,pos,neg}}
 const invCount=()=>(S.inventaires||[]).filter(t=>t.statut!=="valide").length;
-const invGroupsTxt=t=>{const g=G(),gs=t.groupes||[];return gs.length?gs.map(id=>g[id]?.nom||"?").join(", "):"Tous les groupes"};
+const invGroupsTxt=t=>{const g=G(),gs=t.groupes||[];return(gs.length?gs.map(id=>g[id]?.nom||"?").join(", "):"Tous les groupes")+(t.restreint?` · sélection de ${Object.keys(t.lignes||{}).length} article${Object.keys(t.lignes||{}).length>1?"s":""}`:"")};
 function renderInv(b){
   if(!loaded.inventaires){b.innerHTML=`<div class="empty"><p>Chargement…</p></div>`;return}
   const dm=D(),g=G(),q=(ui.ivQ||"").trim().toLowerCase();
@@ -2292,7 +2296,7 @@ function invArticles(depId,groupIds,withZero){
 function invCreate(){
   if(!canAdmin){toast("Réservé à l'administrateur.");return}
   const g=G(),deps=sortedDeps().filter(d=>!isPerte(d)&&(ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2")),grs=S.groupes.slice().sort((x,y)=>x.nom.localeCompare(y.nom));
-  const selD=new Set(),selG=new Set();let mode="depot",withZero=false;
+  const selD=new Set(),selG=new Set(),selA=new Set();let mode="depot",withZero=false,restr=false;
   const m=openModal(`<header><h2>Nouvel inventaire</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb">
     <div class="fgrid"><label class="f">Date de l'inventaire<input type="date" id="iv-date" value="${today()}"></label><label class="f">Note / motif<input type="text" id="iv-note" placeholder="Ex. INVENTAIRE MENSUEL OCTOBRE"></label></div>
@@ -2300,29 +2304,39 @@ function invCreate(){
      <section class="trx-cat"><div class="trx-h"><span class="step">1</span>Dépôts <span class="badge" id="iv-nd">0</span><span class="grow"></span><button type="button" class="btn ghost sm" id="iv-alld">Tout</button><button type="button" class="btn ghost sm" id="iv-nod">Aucun</button></div><input type="search" id="iv-qd" placeholder="Chercher un dépôt…"><div class="iv-list" id="iv-ld"></div></section>
      <section class="trx-cat"><div class="trx-h"><span class="step">2</span>Groupes d'articles <span class="badge" id="iv-ng">0</span><span class="grow"></span><button type="button" class="btn ghost sm" id="iv-allg">Tout</button><button type="button" class="btn ghost sm" id="iv-nog">Aucun</button></div><input type="search" id="iv-qg" placeholder="Chercher un groupe…"><div class="iv-list" id="iv-lg"></div></section>
     </div>
+    <section class="trx-cat"><div class="trx-h"><span class="step">3</span>Articles à inventorier <span class="badge" id="iv-na">Tous</span><span class="grow"></span><label class="check pill" style="margin:0"><input type="checkbox" id="iv-restr"> Inventaire restreint (choisir les articles)</label></div><div id="iv-abox" hidden><div class="trx-filters" style="margin:6px 0"><input type="search" id="iv-qa" placeholder="Chercher un article (nom ou code)…" style="flex:1;min-width:180px"><button type="button" class="btn ghost sm" id="iv-alla">Tout</button><button type="button" class="btn ghost sm" id="iv-noa">Aucun</button></div><div class="iv-list" id="iv-la"></div></div></section>
     <div class="pf-row"><span>Découpage des fiches</span><div class="tseg2" id="iv-mode"><button type="button" data-v="depot" aria-pressed="true">Une fiche par dépôt (groupes choisis ensemble)</button><button type="button" data-v="groupe" aria-pressed="false">Une fiche par dépôt et par groupe</button></div></div>
     <label class="check"><input type="checkbox" id="iv-zero"> Inclure aussi les articles du groupe sans stock dans le dépôt</label>
     <p class="lock warn" id="iv-sum" style="margin:0"></p><div class="err"></div></div>
    <footer><button class="btn" data-close>Annuler</button><button class="btn primary" id="iv-go">Générer les fiches</button></footer>`,{wide:true});
   const plan=()=>{const out=[];for(const d of deps){if(!selD.has(d.id))continue;const gl=grs.filter(x=>selG.has(x.id)).map(x=>x.id);
-      const sets=mode==="groupe"?gl.map(x=>[x]):[gl];for(const gs of sets){const arts=invArticles(d.id,gs,withZero);if(arts.length)out.push({dep:d,groupes:gs,arts})}}return out};
+      const sets=mode==="groupe"?gl.map(x=>[x]):[gl];for(const gs of sets){let arts=invArticles(d.id,gs,withZero);if(restr)arts=arts.filter(a=>selA.has(a.id));if(arts.length)out.push({dep:d,groupes:gs,arts})}}return out};
+  const availA=()=>{const mp=new Map();if(!selD.size||!selG.size)return[];const gl=[...selG];for(const d of selD)for(const a of invArticles(d,gl,withZero)){const e=mp.get(a.id)||{a,q:0};e.q+=qty(a.id,d);mp.set(a.id,e)}return[...mp.values()].sort((x,y)=>(x.a.nom||"").localeCompare(y.a.nom||""))};
+  const drawA=()=>{const na=$("#iv-na",m);$("#iv-abox",m).hidden=!restr;if(!restr){na.textContent="Tous";return}
+    const av=availA(),ids=new Set(av.map(e=>e.a.id));for(const id of [...selA])if(!ids.has(id))selA.delete(id);na.textContent=`${selA.size} / ${av.length}`;
+    const f=nrm($("#iv-qa",m).value||""),g=G();const vis=av.filter(e=>!f||nrm((e.a.nom||"")+" "+(e.a.code||"")).includes(f));
+    $("#iv-la",m).innerHTML=!av.length?`<p class="hint" style="padding:10px;margin:0">Choisissez d'abord les dépôts et les groupes d'articles : leurs articles s'afficheront ici.</p>`:vis.slice(0,800).map(e=>`<label class="dep-opt"><input type="checkbox" value="${e.a.id}" ${selA.has(e.a.id)?"checked":""}><span class="swatch" style="--c:${groupColor(g[e.a.groupeId]||{})};width:10px;height:10px;border-radius:50%;background:var(--c);flex:none"></span><span>${esc(e.a.nom||"")}${e.a.code?` <small class="mono" style="color:var(--muted)">${esc(e.a.code)}</small>`:""}</span><span class="n">${fmt(e.q)}</span></label>`).join("")||`<p class="hint" style="padding:10px;margin:0">Aucun article ne correspond à la recherche.</p>`;
+    $("#iv-la",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selA.add(c.value):selA.delete(c.value);na.textContent=`${selA.size} / ${av.length}`;sum()})};
   const sum=()=>{$("#iv-nd",m).textContent=selD.size;$("#iv-ng",m).textContent=selG.size;const p=plan(),n=p.reduce((s,x)=>s+x.arts.length,0);
-    $("#iv-sum",m).textContent=!selD.size||!selG.size?"Choisissez au moins un dépôt et un groupe d'articles.":p.length?`→ ${p.length} fiche${p.length>1?"s":""} d'inventaire · ${n} ligne${n>1?"s":""} à compter`:"Aucun article de ces groupes dans ces dépôts (cochez « Inclure aussi les articles sans stock » si besoin).";
+    $("#iv-sum",m).textContent=!selD.size||!selG.size?"Choisissez au moins un dépôt et un groupe d'articles.":restr&&!selA.size?"Inventaire restreint : cochez les articles à inventorier.":p.length?`→ ${p.length} fiche${p.length>1?"s":""} d'inventaire · ${n} ligne${n>1?"s":""} à compter`:"Aucun article de ces groupes dans ces dépôts (cochez « Inclure aussi les articles sans stock » si besoin).";
     $("#iv-go",m).disabled=!p.length;$("#iv-go",m).textContent=p.length>1?`Générer les ${p.length} fiches`:"Générer la fiche"};
   const cntG=gid=>{const ids=new Set();for(const d of selD)for(const a of invArticles(d,[gid],withZero))ids.add(a.id);return ids.size};
   const availG=()=>selD.size?grs.filter(x=>cntG(x.id)>0):[];
   const drawD=()=>{const f=$("#iv-qd",m).value.trim().toLowerCase();$("#iv-ld",m).innerHTML=[["LES2","Commun"],["NOVOTEL","NOVOTEL"],["IBIS","IBIS"]].map(([h,l])=>{const ds=deps.filter(d=>d.hotel===h&&(!f||d.nom.toLowerCase().includes(f)));return ds.length?`<div class="dd-h" style="color:var(--${h==="IBIS"?"ibs":h==="LES2"?"accent":"novo"})">${l}</div>`+ds.map(d=>{let n=0;for(const a of S.articles)if(inDep(a,d.id))n++;return`<label class="dep-opt"><input type="checkbox" value="${d.id}" ${selD.has(d.id)?"checked":""}><span>${esc(d.nom)}</span><span class="n">${n}</span></label>`}).join(""):""}).join("")||`<p class="hint">Aucun dépôt.</p>`;
     $("#iv-ld",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selD.add(c.value):selD.delete(c.value);drawG();sum()})};
   const drawG=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();
-    if(!selD.size){selG.clear();$("#iv-lg",m).innerHTML=`<p class="hint" style="padding:10px;margin:0">Cochez d'abord un ou plusieurs dépôts : seuls les groupes qui ont des articles dans ces dépôts s'afficheront ici.</p>`;return}
+    if(!selD.size){selG.clear();$("#iv-lg",m).innerHTML=`<p class="hint" style="padding:10px;margin:0">Cochez d'abord un ou plusieurs dépôts : seuls les groupes qui ont des articles dans ces dépôts s'afficheront ici.</p>`;drawA();return}
     const av=availG();for(const id of [...selG])if(!av.some(x=>x.id===id))selG.delete(id);
     $("#iv-lg",m).innerHTML=av.filter(x=>!f||x.nom.toLowerCase().includes(f)).map(x=>`<label class="dep-opt"><input type="checkbox" value="${x.id}" ${selG.has(x.id)?"checked":""}><span class="swatch" style="--c:${groupColor(x)};width:10px;height:10px;border-radius:50%;background:var(--c);flex:none"></span><span>${esc(x.nom)}</span><span class="n">${cntG(x.id)}</span></label>`).join("")||`<p class="hint" style="padding:10px;margin:0">${av.length?"Aucun groupe ne correspond à la recherche.":"Aucun article dans ce(s) dépôt(s)."}</p>`;
-    $("#iv-lg",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selG.add(c.value):selG.delete(c.value);sum()})};
+    $("#iv-lg",m).querySelectorAll("input").forEach(c=>c.onchange=()=>{c.checked?selG.add(c.value):selG.delete(c.value);drawA();sum()});drawA()};
   $("#iv-qd",m).oninput=drawD;$("#iv-qg",m).oninput=drawG;
   $("#iv-alld",m).onclick=()=>{const f=$("#iv-qd",m).value.trim().toLowerCase();deps.filter(d=>!f||d.nom.toLowerCase().includes(f)).forEach(d=>selD.add(d.id));drawD();drawG();sum()};
   $("#iv-nod",m).onclick=()=>{selD.clear();drawD();drawG();sum()};
   $("#iv-allg",m).onclick=()=>{const f=$("#iv-qg",m).value.trim().toLowerCase();availG().filter(x=>!f||x.nom.toLowerCase().includes(f)).forEach(x=>selG.add(x.id));drawG();sum()};
   $("#iv-nog",m).onclick=()=>{selG.clear();drawG();sum()};
+  $("#iv-restr",m).onchange=e=>{restr=e.target.checked;drawA();sum()};$("#iv-qa",m).oninput=drawA;
+  const visA=()=>{const f=nrm($("#iv-qa",m).value||"");return availA().filter(e=>!f||nrm((e.a.nom||"")+" "+(e.a.code||"")).includes(f))};
+  $("#iv-alla",m).onclick=()=>{visA().forEach(e=>selA.add(e.a.id));drawA();sum()};$("#iv-noa",m).onclick=()=>{visA().forEach(e=>selA.delete(e.a.id));drawA();sum()};
   m.querySelectorAll("#iv-mode button").forEach(x=>x.onclick=()=>{mode=x.dataset.v;m.querySelectorAll("#iv-mode button").forEach(y=>y.setAttribute("aria-pressed",y===x));sum()});
   $("#iv-zero",m).onchange=e=>{withZero=e.target.checked;drawG();sum()};
   $("#iv-nd",m).closest(".trx-cat").querySelector(".iv-list").setAttribute("aria-label","Dépôts");
@@ -2331,7 +2345,7 @@ function invCreate(){
     const date=$("#iv-date",m).value||today(),note=$("#iv-note",m).value.trim().toUpperCase(),ids=[];const go=$("#iv-go",m);
     for(const[i,f]of p.entries()){go.textContent=`Création ${i+1} / ${p.length}…`;const numero=await nextNum("inventaire","INV");const lignes={};
       for(const a of f.arts)lignes[a.id]={g:a.groupeId||"",th:qty(a.id,f.dep.id),n:a.nom||""};
-      await db.doc("inventaires/"+numero).set({numero,statut:"encours",depotId:f.dep.id,groupes:f.groupes,date,note,inclZero:withZero,lignes,cree:Date.now(),creePar:myId||null});ids.push(numero)}
+      await db.doc("inventaires/"+numero).set({numero,statut:"encours",depotId:f.dep.id,groupes:f.groupes,date,note,inclZero:withZero,...(restr?{restreint:true}:{}),lignes,cree:Date.now(),creePar:myId||null});ids.push(numero)}
     closeModal();if(ui.tab!=="inv"){ui.tab="inv";ui.ivSt="";saveUi();syncHeader();renderAll()}
     const mm=openModal(`<header><h2>${ids.length} fiche${ids.length>1?"s":""} d'inventaire créée${ids.length>1?"s":""}</h2><button class="btn ghost sm" data-close>Fermer</button></header>
      <div class="mb"><div class="list">${ids.map(id=>{const t={numero:id,...p[ids.indexOf(id)]};return`<div class="li"><div class="t"><b>${esc(id)}</b><span>${esc(t.dep.nom)} · ${t.groupes.map(x=>g[x]?.nom||"").join(", ")} · ${t.arts.length} articles</span></div><button class="btn sm" data-f="${esc(id)}">🖨 Fiche</button></div>`}).join("")}</div>
