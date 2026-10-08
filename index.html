@@ -770,6 +770,7 @@ function renderToolbar(){
       <div class="seg" role="group" aria-label="Photo">${[["","Tous"],["avec","Avec photo"],["sans","Sans photo"]].map(([k,l])=>`<button data-pf="${k}" aria-pressed="${(ui.photoF||"")===k}">${l} <span class="badge" id="pf-n-${k||"all"}"></span></button>`).join("")}</div>
       <label class="check pill"><input type="checkbox" id="tb-al" ${ui.alert?"checked":""}> Alertes seulement</label>
       <div class="grow"></div>
+      <button class="btn" id="tb-xl" title="Exporter en Excel les articles affichés selon les filtres (recherche, dépôts, groupe, photo, alertes)">⬇ Exporter la liste</button>
       <div class="seg" role="group" aria-label="Affichage"><button data-v="cards" aria-pressed="${ui.view==="cards"}">Fiches</button><button data-v="table" aria-pressed="${ui.view==="table"}">Liste</button></div></div>
       <div class="depchips" id="depchips"></div>`;
   } else if(ui.tab==="mvts"){
@@ -801,6 +802,7 @@ function renderToolbar(){
   on("tb-g","change",e=>{ui.groupe=e.target.value;saveUi();renderBody()});
   on("tb-al","change",e=>{ui.alert=e.target.checked;saveUi();renderBody()});
   on("tb-dup","click",()=>dupTool());
+  on("tb-xl","click",()=>exportArticles());
   tb.querySelectorAll("[data-pf]").forEach(b=>b.onclick=()=>{ui.photoF=b.dataset.pf;artLimit=120;saveUi();renderToolbar();renderBody()});
   on("tb-mq","input",e=>{ui.mvQ=e.target.value;renderBody()});
   on("tb-tq","input",e=>{ui.trQ=e.target.value;renderBody()});
@@ -968,6 +970,23 @@ function renderArticles(b){
   if(selDeps().length){const c=document.createElement("p");c.className="hint";c.style.margin="0 0 10px";c.textContent=full.length+" article"+(full.length>1?"s":"")+" trouvé"+(full.length>1?"s":"");b.prepend(c)}
   if(full.length>list.length){const m=document.createElement("div");m.style.cssText="display:flex;justify-content:center;gap:12px;align-items:center;margin-top:14px";m.innerHTML=`<span class="hint">${list.length} sur ${full.length} articles</span><button class="btn">Afficher plus</button>`;m.querySelector("button").onclick=()=>{artLimit+=240;renderBody()};b.appendChild(m)}
   b.querySelectorAll("[data-art]").forEach(el=>el.onclick=()=>articleDetail(el.dataset.art));
+}
+/* export Excel de la liste filtrée des articles */
+async function exportArticles(){
+  const list=filteredArticles();if(!list.length){toast("Aucun article à exporter avec ces filtres.");return}
+  try{await loadLib("xlsx");const g=G(),u=U(),dm=D(),sd=selDeps(),deps=sd.length?sd.map(id=>dm[id]).filter(Boolean):depotsVis().filter(d=>list.some(a=>qty(a.id,d.id)));
+    const ET={ok:"OK",warn:"Sous le seuil",crit:"Rupture"};
+    const head=["Code","Article","Groupe","Hôtel","Référence",...deps.map(d=>d.nom),"Total","Unité","Seuil","État","Photo"];
+    const rows=list.map(a=>{const qs=deps.map(d=>qty(a.id,d.id)),t=qs.reduce((x,y)=>x+y,0);
+      return[a.code||"",a.nom||"",g[a.groupeId]?.nom||"",a.hotel==="LES2"||!a.hotel?"Les deux":a.hotel,a.reference||"",...qs,t,u[a.uniteId]?.abrev||u[a.uniteId]?.nom||"",+a.seuil||0,ET[level(a,t)]||"",(a.photo&&(a.photo.asset||a.photo.data))?"Oui":"Non"]});
+    const filt=[["Exporté le",fdate(today())],["Hôtel",ui.hotel==="ALL"?"Tous":ui.hotel],["Recherche",ui.q||"—"],["Dépôts",sd.length?deps.map(d=>d.nom).join(", ")+(sd.length>1?(ui.depMode==="all"?" (dans tous)":" (dans au moins un)"):""):"Tous"],["Groupe",ui.groupe?(g[ui.groupe]?.nom||""):"Tous"],["Photo",ui.photoF==="avec"?"Avec photo":ui.photoF==="sans"?"Sans photo":"Tous"],["Alertes seulement",ui.alert?"Oui":"Non"],["Articles",list.length]];
+    const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet([head,...rows]);
+    ws["!cols"]=[{wch:16},{wch:60},{wch:26},{wch:9},{wch:16},...deps.map(()=>({wch:14})),{wch:10},{wch:8},{wch:7},{wch:13},{wch:6}];
+    ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:head.length-1}})};
+    XLSX.utils.book_append_sheet(wb,ws,"Articles");XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(filt),"Filtres");
+    const tag=[ui.hotel!=="ALL"?ui.hotel:"",ui.groupe?(g[ui.groupe]?.nom||""):"",sd.length===1?deps[0]?.nom:""].filter(Boolean).join(" - ");
+    XLSX.writeFile(wb,("LISTE ARTICLES "+(tag?tag+" ":"")+today()).replace(/[\\/:*?"<>|]/g," ")+".xlsx");toast(list.length+" article"+(list.length>1?"s":"")+" exporté"+(list.length>1?"s":""))
+  }catch(x){toast((x&&x.message)||"Export impossible")}
 }
 function hotelChip(h){if(!h||h==="LES2")return`<span class="chip">Les deux</span>`;return`<span class="chip h-${h}">${h}</span>`}
 
