@@ -2129,17 +2129,20 @@ async function parseRecPdf(file,onp){
     const it=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str.trim(),x:i.transform[4],y:vp.height-i.transform[5]}));
     const lines=[];for(const i of it.sort((a,b)=>a.y-b.y||a.x-b.x)){let l=lines.find(l=>Math.abs(l.y-i.y)<2.5);if(!l)lines.push(l={y:i.y,it:[]});l.it.push(i)}
     lines.forEach(l=>l.it.sort((a,b)=>a.x-b.x));let start=0;
-    if(!cols){const hl=lines.findIndex(l=>l.it.some(i=>/^stock/i.test(i.s))&&l.it.some(i=>/^QTE/i.test(i.s)));if(hl<0)continue;
+    if(!cols){const hl=lines.findIndex(l=>l.it.some(i=>/^stock/i.test(i.s))&&l.it.some(i=>/^QTE|^QUANTIT/i.test(i.s)));if(hl<0)continue;
       const t=lines[hl].it,fx=re=>t.find(i=>re.test(i.s))?.x;
-      const artX=t.filter(i=>/ARTICLE/i.test(i.s)).map(i=>i.x).sort((a,b)=>b-a)[0];
-      cols={stock:fx(/^stock/i),groupe:fx(/^groupe/i),num:fx(/^N°|^N /i),art:artX,qte:fx(/^QTE/i),unite:fx(/^unit/i),creer:fx(/^A\b|^A CR|CR[EÉ]ER/i),photo:fx(/^PHOTO/i),four:fx(/^FOURNISSEUR/i)};
+      const pref=[/^ARTICLE SUR MC/i,/^D[ÉE]SIGNATION\s+A\s+METTRE/i,/^D[ÉE]SIGNATION\s+EN\s+FR/i,/^D[ÉE]SIGNATION$/i,/^ARTICLE$/i];let artX;for(const re of pref){const it=t.find(i=>re.test(i.s.trim()));if(it){artX=it.x;break}}
+      if(artX==null)artX=t.filter(i=>/ARTICLE|D[ÉE]SIGNATION/i.test(i.s)&&!/^N°|^N |^GROUPE/i.test(i.s)).map(i=>i.x).sort((a,b)=>b-a)[0];
+      let numX=fx(/^N°|^N /i);if(numX==null){const pa=t.find(i=>/^ARTICLE$/i.test(i.s.trim())&&i.x<artX);if(pa)numX=pa.x}
+      cols={stock:fx(/^stock/i),groupe:fx(/^groupe/i),num:numX,art:artX,qte:fx(/^QTE\s*RE[CÇ]/i)??fx(/^QTE|^QUANTIT/i),unite:fx(/^unit/i),creer:fx(/^A\b|^A CR|CR[EÉ]ER/i),photo:fx(/^PHOTO/i),four:fx(/^FOURNISSEUR/i)};
       if(cols.num!=null&&cols.art!=null&&cols.num>=cols.art)cols.num=null;
+      for(const it of t){if(/^(Q[TU]|QUANT|[ÉE]CART|CASSE|MANQUANT|PHYSIQUE|PU\b|PRIX|MONTANT|TOTAL|D[ÉE]SIGNATION FOURNISSEUR|OBS)/i.test(it.s.trim())&&!Object.values(cols).some(x=>x!=null&&Math.abs(x-it.x)<2))cols["_"+Math.round(it.x)]=it.x}
       for(const l of lines.slice(0,hl))head.push(l.it.map(i=>i.s).join(" "));start=hl+1}
     const order=Object.entries(cols).filter(([,x])=>x!=null).sort((a,b)=>a[1]-b[1]);
     const colOf=x=>{let c=order[0][0];for(const[k,cx]of order)if(x>=cx-3)c=k;return c};
     const pageRows=[];
     for(const l of lines.slice(start)){const cell={};for(const i of l.it){const c=colOf(i.x);cell[c]=(cell[c]?cell[c]+" ":"")+i.s}
-      if(cell.qte||cell.stock){pageRows.push({y:l.y,cell})}else if(cell.art&&pageRows.length&&l.y-pageRows[pageRows.length-1].y<14)pageRows[pageRows.length-1].cell.art+=" "+cell.art}
+      if(cell.qte||cell.stock){pageRows.push({y:l.y,ly:l.y,cell})}else if(cell.art&&pageRows.length&&l.y-pageRows[pageRows.length-1].ly<14){const pr=pageRows[pageRows.length-1];pr.cell.art=(pr.cell.art?pr.cell.art+" ":"")+cell.art;pr.ly=l.y}}
     if(pageRows.length&&cols.photo!=null){const sc=2.5,cv=document.createElement("canvas"),v2=page.getViewport({scale:sc});cv.width=v2.width;cv.height=v2.height;const cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,cv.width,cv.height);
       await page.render({canvasContext:cx,viewport:v2}).promise;
       /* emplacement exact des images (opérateurs PDF) */
@@ -2160,21 +2163,43 @@ async function parseRecPdf(file,onp){
   if(!cols)throw{message:"Le PDF ne contient pas la ligne d'en-tête attendue (Stock · Groupe Articles · N° Article · Article · QTE · Unité Base · A CRÉER · PHOTO)."};
   return{head:parseRecHeader(head),rows};
 }
+/* images insérées « dans la cellule » (Excel 365 : richData) → {feuille:{"r,c":dataURL}} */
+async function xlsxCellImages(z){const out={};try{
+  const rd=(p)=>z.file(p)?z.file(p).async("string"):null,P=s=>new DOMParser().parseFromString(s,"application/xml");
+  const mdS=await rd("xl/metadata.xml"),rvS=await rd("xl/richData/rdrichvalue.xml"),relS=await rd("xl/richData/richValueRel.xml"),rrS=await rd("xl/richData/_rels/richValueRel.xml.rels");if(!mdS||!rvS||!relS||!rrS)return out;
+  const md=P(mdS),fut=[...md.getElementsByTagNameNS("*","rvb")].map(e=>+e.getAttribute("i")),vb=md.getElementsByTagNameNS("*","valueMetadata")[0],vmeta=vb?[...vb.getElementsByTagNameNS("*","rc")].map(e=>+e.getAttribute("v")):[];
+  const rvs=[...P(rvS).getElementsByTagNameNS("*","rv")].map(e=>[...e.getElementsByTagNameNS("*","v")].map(v=>v.textContent));
+  const rids=[...P(relS).getElementsByTagNameNS("*","rel")].map(e=>e.getAttribute("r:id")||e.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id"));
+  const tgt={};for(const e of P(rrS).getElementsByTagName("Relationship"))tgt[e.getAttribute("Id")]=e.getAttribute("Target");
+  const wb=P(await rd("xl/workbook.xml")),wr={};for(const e of P(await rd("xl/_rels/workbook.xml.rels")).getElementsByTagName("Relationship"))wr[e.getAttribute("Id")]=e.getAttribute("Target");
+  const sheets=[...wb.getElementsByTagNameNS("*","sheet")];
+  for(let si=0;si<sheets.length;si++){const rid=sheets[si].getAttribute("r:id")||sheets[si].getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id");let t=wr[rid]||"";t=t.startsWith("/")?t.slice(1):(t.startsWith("xl/")?t:"xl/"+t);const xs=await rd(t);if(!xs)continue;const d={};
+    for(const m of xs.matchAll(/<c r="([A-Z]+)(\d+)"[^>]*\bvm="(\d+)"/g)){try{const rvi=fut[vmeta[+m[3]-1]],li=+rvs[rvi][0],img="xl/"+tgt[rids[li]].replace(/^\.\.\//,"");const f=z.file(img);if(!f)continue;
+      const col=m[1].split("").reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0)-1,ext=img.split(".").pop().toLowerCase();d[(+m[2]-1)+","+col]=await shrinkData(`data:image/${ext==="jpg"?"jpeg":ext};base64,${await f.async("base64")}`).catch(()=>null)}catch(e){}}
+    out[si]=d}}catch(e){}return out}
 async function parseRecXlsx(file){
-  await loadLib("xlsx");const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:"array"}),sn=wb.SheetNames[0],ws=wb.Sheets[sn];
+  await loadLib("xlsx");const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:"array"});let z=null;try{await loadLib("jszip");z=await JSZip.loadAsync(buf)}catch(e){}
+  const cellImgs=z?await xlsxCellImages(z):{};const rows=[];let head=null;
+  for(const sn of wb.SheetNames){const ws=wb.Sheets[sn],si=wb.SheetNames.indexOf(sn);
   const r0=ws["!ref"]?XLSX.utils.decode_range(ws["!ref"]).s.r:0,aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true,blankrows:true});
-  const hi=aoa.findIndex(r=>r&&r.some(c=>nrm(c)==="STOCK")&&r.some(c=>/^QTE/.test(nrm(c))));if(hi<0)throw{message:"Ligne d'en-tête introuvable (Stock · Groupe Articles · N° Article · Article · QTE · Unité Base · A CRÉER · PHOTO)."};
-  const H=aoa[hi].map(nrm),ci=re=>H.findIndex(h=>re.test(h)),C={dep:ci(/^STOCK$/),grp:ci(/^GROUPE/),num:ci(/^N ?ARTICLE|^NO ARTICLE/),art:ci(/^ARTICLE$/),q:ci(/^QTE/),u:ci(/^UNITE/),cr:ci(/CREER/),four:ci(/^FOURNISSEUR/)};
-  const imgs={};try{await loadLib("jszip");const z=await JSZip.loadAsync(buf),idx=wb.SheetNames.indexOf(sn)+1;
+  const hi=aoa.findIndex(r=>r&&r.some(c=>nrm(c)==="STOCK")&&r.some(c=>/^QTE|^QUANTITE/.test(nrm(c))));if(hi<0)continue;
+  const H=aoa[hi].map(nrm),ci=re=>H.findIndex(h=>re.test(h)),first=(...rs)=>{for(const re of rs){const k=ci(re);if(k>=0)return k}return -1};
+  const art=first(/^ARTICLE SUR MC/,/^DESIGNATION A METTRE/,/^DESIGNATION EN FR/,/^DESIGNATION$/,/^ARTICLE$/,/^ARTICLE/,/^DESIGNATION/);let num=first(/^N ?ARTICLE|^NO ARTICLE/);if(num<0&&/^ARTICLE SUR/.test(H[art]||""))num=ci(/^ARTICLE$/);
+  const C={dep:ci(/^STOCK$/),grp:ci(/^GROUPE/),num,art,q:first(/^QTE RECU/,/^QTE/,/^QUANTITE/),u:ci(/^UNITE/),cr:ci(/CREER/),ph:ci(/^PHOTO/),four:ci(/^FOURNISSEUR/)};
+  const imgs={};try{if(z){const idx=si+1;
     const rel=await z.file(`xl/worksheets/_rels/sheet${idx}.xml.rels`)?.async("string");const dr=rel&&/Target="\.\.\/drawings\/([^"]+)"/.exec(rel);
     if(dr){const dx=new DOMParser().parseFromString(await z.file("xl/drawings/"+dr[1]).async("string"),"application/xml"),drel=await z.file("xl/drawings/_rels/"+dr[1]+".rels")?.async("string")||"";
       const rid={};for(const m2 of drel.matchAll(/Id="([^"]+)"[^>]*Target="\.\.\/media\/([^"]+)"/g))rid[m2[1]]=m2[2];for(const m2 of drel.matchAll(/Target="\.\.\/media\/([^"]+)"[^>]*Id="([^"]+)"/g))rid[m2[2]]=m2[1];
       for(const an of [...dx.getElementsByTagNameNS("*","twoCellAnchor"),...dx.getElementsByTagNameNS("*","oneCellAnchor")]){const fr=an.getElementsByTagNameNS("*","from")[0],row=+fr?.getElementsByTagNameNS("*","row")[0]?.textContent,bl=an.getElementsByTagNameNS("*","blip")[0];
         const id=bl&&(bl.getAttribute("r:embed")||bl.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","embed"));const md=id&&rid[id];if(md==null||isNaN(row)||imgs[row])continue;
-        const f=z.file("xl/media/"+md);if(!f)continue;const ext=md.split(".").pop().toLowerCase(),b64=await f.async("base64");imgs[row]=await shrinkData(`data:image/${ext==="jpg"?"jpeg":ext};base64,${b64}`).catch(()=>null)}}}catch(e){}
-  const rows=[];for(let i=hi+1;i<aoa.length;i++){const r=aoa[i];if(!r||!r.some(c=>c!=null&&String(c).trim()))continue;const nom=String(r[C.art]??"").trim();if(!nom)continue;
-    rows.push({depot:String(r[C.dep]??"").trim(),groupe:C.grp>=0?String(r[C.grp]??"").trim():"",num:C.num>=0&&r[C.num]!=null?String(r[C.num]).trim():"",nom,qte:r[C.q],unite:C.u>=0?String(r[C.u]??"").trim():"",creer:C.cr>=0?String(r[C.cr]??"").trim():"",four:C.four>=0?String(r[C.four]??"").trim():"",photo:imgs[r0+i]||null})}
-  return{head:parseRecHeader(aoa.slice(0,hi).map(r=>(r||[]).filter(c=>c!=null).join(" "))),rows};
+        const f=z.file("xl/media/"+md);if(!f)continue;const ext=md.split(".").pop().toLowerCase(),b64=await f.async("base64");imgs[row]=await shrinkData(`data:image/${ext==="jpg"?"jpeg":ext};base64,${b64}`).catch(()=>null)}}}}catch(e){}
+  const ci2=cellImgs[si]||{};
+  for(let i=hi+1;i<aoa.length;i++){const r=aoa[i];if(!r||!r.some(c=>c!=null&&String(c).trim()))continue;const nom=String(r[C.art]??"").trim();if(!nom||/^#/.test(nom))continue;const R0=r0+i;
+    const ph=(C.ph>=0&&ci2[R0+","+C.ph])||imgs[R0]||Object.entries(ci2).find(([k])=>k.startsWith(R0+","))?.[1]||null;
+    rows.push({depot:String(r[C.dep]??"").trim(),groupe:C.grp>=0?String(r[C.grp]??"").trim():"",num:C.num>=0&&r[C.num]!=null?String(r[C.num]).trim().replace(/^REF\s+/i,""):"",nom,qte:r[C.q],unite:C.u>=0?String(r[C.u]??"").trim():"",creer:C.cr>=0?String(r[C.cr]??"").trim():"",four:C.four>=0?String(r[C.four]??"").trim():"",photo:ph})}
+  if(!head)head=parseRecHeader(aoa.slice(0,hi).map(r=>(r||[]).filter(c=>c!=null).join(" ")))}
+  if(!head)throw{message:"Ligne d'en-tête introuvable (Stock · Groupe Articles · N° Article · Article · QTE · Unité Base · A CRÉER · PHOTO)."};
+  return{head,rows};
 }
 async function recTemplate(){await loadLib("xlsx");const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet([["NOM DU FOURNISSEUR"],["FACTURE N° XXXXXX DU JJ MOIS AAAA"],["BL N° XXXXXX DU JJ MOIS AAAA"],REC_COLS,[S.depots[0]?.nom||"NOVOTEL CUISINE MATERIEL","USTENSILE CUISINE","30001","SALADIER BÉTON Ø 26CM REF 30001",10,"Each","OUI",""]]);
@@ -2188,13 +2213,15 @@ function recArtPlan(rows){
   const cz=x=>nrm(x).replace(/ /g,""),arts=S.articles.map(a=>({a,n:nrm(a.nom),c:cz(a.code),rf:cz(a.reference),nz:cz(a.nom)}));
   const tot=new Map();for(const st of S.stock)tot.set(st.articleId,(tot.get(st.articleId)||0)+Math.abs(+st.qte||0));
   const seen=new Map();
-  rows.forEach((r,i)=>{const rn=nrm(r.nom),rc=cz(r.num),cand=new Map(),add=(id,sure,why)=>{const o=cand.get(id);if(!o||(!o.sure&&sure))cand.set(id,{sure,why})};
+  const pre=n=>n.split(/ REF /)[0],nums=n=>(pre(n).match(/\d+(?:[.,]\d+)?/g)||[]).join(","),words=n=>new Set(pre(n).split(" ").filter(w=>w.length>=4&&/^[A-Z]+$/.test(w)));
+  const compat=(a,b)=>{const na=nums(a),nb=nums(b);if(na&&nb&&na!==nb)return false;const wa=words(a);for(const w of words(b))if(wa.has(w))return true;return false};
+  rows.forEach((r,i)=>{const rn=nrm(r.nom),rc=cz(r.num),rcs=nrm(r.num),cand=new Map(),add=(id,sure,why)=>{const o=cand.get(id);if(!o||(!o.sure&&sure))cand.set(id,{sure,why})};
     if(r.hit)add(r.hit.aid,!/proche/.test(r.hit.how),r.hit.how);
     for(const x of arts){
-      if(rc.length>=4&&(x.c===rc||x.rf===rc||x.rf==="REF"+rc))add(x.a.id,true,"même référence");
-      else if(rc.length>=6&&/[A-Z]/.test(rc)&&x.nz.includes(rc))add(x.a.id,true,"référence dans le nom");
+      if(rc.length>=4&&(x.c===rc||x.rf===rc||x.rf==="REF"+rc)&&compat(rn,x.n))add(x.a.id,rc.length>=5&&nums(rn)===nums(x.n),"même référence");
+      else if(rc.length>=6&&/[A-Z]/.test(rc)&&(" "+x.n+" ").includes(" "+rcs+" ")&&compat(rn,x.n))add(x.a.id,nums(rn)===nums(x.n),"référence dans le nom");
       if(x.n.length>=25&&rn.length>x.n.length&&rn.startsWith(x.n))add(x.a.id,true,"nom tronqué (fichier Excel)");
-      else if(rn.length>=18&&x.n.length>rn.length&&x.n.startsWith(rn+" ")){const rest=x.n.slice(rn.length+1).replace(/ /g,"");add(x.a.id,rc.length>=4&&rest===rc,rc.length>=4&&rest===rc?"nom + référence":"nom plus long")}}
+      else if(rn.length>=18&&x.n.length>rn.length&&x.n.startsWith(rn+" ")){const rest=x.n.slice(rn.length+1).replace(/ /g,"").replace(/^REF/,"");add(x.a.id,rc.length>=4&&rest===rc,rc.length>=4&&rest===rc?"nom + référence":"nom plus long")}}
     const ids=[...cand.keys()].filter(id=>A()[id]);
     if(!ids.length){const k=rn+"|"+rc;if(seen.has(k)){r.plan={same:seen.get(k)};return}seen.set(k,i);r.plan={keep:null,sel:new Set(),cand:[]};return}
     const sc=id=>{const a=A()[id];return(cand.get(id).sure?1e10:0)+(Array.isArray(a.nomsExcel)&&a.nomsExcel.length?1e9:0)+(tot.get(id)||0)*10+(a.photo?5:0)};
@@ -2243,7 +2270,7 @@ function recImport(){
       if(!P.rows.length)throw{message:"Aucune ligne d'article trouvée dans le fichier."};
       const dm=depByName(),gm=grpByName(),um=unitByName(),match=buildMatcher();
       R={head:{...P.head,date:today()},file:f.name,rows:P.rows.map(r=>{const q=+String(r.qte??"").replace(/\s/g,"").replace(",",".")||0,hit=match(r.nom,r.num),cr=/^OUI/i.test(nrm(r.creer));
-        return{...r,nom:r.nom.replace(/\s+/g," ").trim().toUpperCase(),q,did:dm.get(nrm(r.depot))||"",gid:gm.get(nrm(r.groupe))||"",uid:um.get(nrm(r.unite))||(S.unites.some(u=>u.id==="pce")?"pce":S.unites[0]?.id||""),cr,hit,mode:hit?"exist":"new",on:q>0}})};
+        return{...r,nom:r.nom.replace(/\s+/g," ").trim().toUpperCase(),q,did:dm.get(nrm(r.depot))||dm.get(nrm(r.depot+" MATERIEL"))||dm.get(nrm(r.depot+"S"))||dm.get(nrm(r.depot).replace(/ MATERIELS?$/,""))||"",gid:gm.get(nrm(r.groupe))||"",uid:um.get(nrm(r.unite))||(S.unites.some(u=>u.id==="pce")?"pce":S.unites[0]?.id||""),cr,hit,mode:hit?"exist":"new",on:q>0}})};
       st.textContent=`${f.name} · ${R.rows.length} lignes · ${R.rows.filter(r=>r.photo).length} photos`;
       const key=nrm(R.head.fournisseur+" "+R.head.facture+" "+R.head.bl).replace(/ /g,"-").toLowerCase();R.key=key;
       try{const s=await window.FB.get(window.FB.ref(window.FB.rdb,"data/receptions/"+key));R.deja=s.exists()?s.val():null}catch(x){}
