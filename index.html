@@ -2249,10 +2249,10 @@ const INV_ST={encours:{label:"En cours",cls:"warn"},valide:{label:"Validé",cls:
 const invPill=t=>`<span class="pill ${INV_ST[t.statut]?.cls||""}">${INV_ST[t.statut]?.label||esc(t.statut||"")}</span>`;
 const INV_SIGN=["Compté par","Responsable du dépôt","Contrôleur Interne"];
 let NUM_HOLDER=null;
-async function nextNum(kind,prefix){
+async function nextNum(kind,prefix,digits=4,taken){
   const y=new Date().getFullYear(),ref=db.doc("compteurs/"+kind+"-"+y),holder=NUM_HOLDER||(NUM_HOLDER=(myId||"anon")+"-"+Math.random().toString(36).slice(2));
   for(let i=0;i<10;i++){const r=await ref.acquire({holder,ttlMs:8000});
-    if(r.acquired){const s=await ref.get();const n=(s.exists?(+s.data().n||0):0)+1;await ref.set({n,maj:Date.now(),par:myId||null});return`${prefix}-${y}-${String(n).padStart(4,"0")}`}
+    if(r.acquired){const s=await ref.get();let n=(s.exists?(+s.data().n||0):0)+1;const fm=k=>`${prefix}-${y}-${String(k).padStart(digits,"0")}`;if(taken)while(taken(fm(n)))n++;await ref.set({n,maj:Date.now(),par:myId||null});return fm(n)}
     await new Promise(res=>setTimeout(res,500+Math.random()*700))}
   throw{message:"La numérotation est occupée par un autre utilisateur. Réessayez dans un instant."};
 }
@@ -2343,7 +2343,7 @@ function invCreate(){
   drawD();drawG();sum();
   $("#iv-go",m).onclick=()=>guard(m,async()=>{const p=plan();if(!p.length)throw{message:"Rien à générer."};
     const date=$("#iv-date",m).value||today(),note=$("#iv-note",m).value.trim().toUpperCase(),ids=[];const go=$("#iv-go",m);
-    for(const[i,f]of p.entries()){go.textContent=`Création ${i+1} / ${p.length}…`;const numero=await nextNum("inventaire","INV");const lignes={};
+    for(const[i,f]of p.entries()){go.textContent=`Création ${i+1} / ${p.length}…`;const numero=await nextNum("inventaire3","INV",3,x=>(S.inventaires||[]).some(v=>v.numero===x||v.id===x));const lignes={};
       for(const a of f.arts)lignes[a.id]={g:a.groupeId||"",th:qty(a.id,f.dep.id),n:a.nom||""};
       await db.doc("inventaires/"+numero).set({numero,statut:"encours",depotId:f.dep.id,groupes:f.groupes,date,note,inclZero:withZero,...(restr?{restreint:true}:{}),lignes,cree:Date.now(),creePar:myId||null});ids.push(numero)}
     closeModal();if(ui.tab!=="inv"){ui.tab="inv";ui.ivSt="";saveUi();syncHeader();renderAll()}
