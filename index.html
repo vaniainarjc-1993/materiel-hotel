@@ -2220,7 +2220,8 @@ function recArtPlan(rows){
     for(const x of arts){
       if(rc.length>=4&&(x.c===rc||x.rf===rc||x.rf==="REF"+rc)&&compat(rn,x.n))add(x.a.id,rc.length>=5&&nums(rn)===nums(x.n),"même référence");
       else if(rc.length>=6&&/[A-Z]/.test(rc)&&(" "+x.n+" ").includes(" "+rcs+" ")&&compat(rn,x.n))add(x.a.id,nums(rn)===nums(x.n),"référence dans le nom");
-      if(x.n.length>=25&&rn.length>x.n.length&&rn.startsWith(x.n))add(x.a.id,true,"nom tronqué (fichier Excel)");
+      if(x.n.length>=8&&rcs&&(rn===x.n+" REF "+rcs||rn===x.n+" "+rcs))add(x.a.id,true,"nom + référence");
+      else if(x.n.length>=25&&rn.length>x.n.length&&rn.startsWith(x.n))add(x.a.id,true,"nom tronqué (fichier Excel)");
       else if(rn.length>=18&&x.n.length>rn.length&&x.n.startsWith(rn+" ")){const rest=x.n.slice(rn.length+1).replace(/ /g,"").replace(/^REF/,"");add(x.a.id,rc.length>=4&&rest===rc,rc.length>=4&&rest===rc?"nom + référence":"nom plus long")}}
     const ids=[...cand.keys()].filter(id=>A()[id]);
     if(!ids.length){const k=rn+"|"+rc;if(seen.has(k)){r.plan={same:seen.get(k)};return}seen.set(k,i);r.plan={keep:null,sel:new Set(),cand:[]};return}
