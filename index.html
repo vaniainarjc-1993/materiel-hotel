@@ -2223,6 +2223,11 @@ function recArtPlan(rows){
       if(x.n.length>=8&&rcs&&(rn===x.n+" REF "+rcs||rn===x.n+" "+rcs))add(x.a.id,true,"nom + référence");
       else if(x.n.length>=25&&rn.length>x.n.length&&rn.startsWith(x.n))add(x.a.id,true,"nom tronqué (fichier Excel)");
       else if(rn.length>=18&&x.n.length>rn.length&&x.n.startsWith(rn+" ")){const rest=x.n.slice(rn.length+1).replace(/ /g,"").replace(/^REF/,"");add(x.a.id,rc.length>=4&&rest===rc,rc.length>=4&&rest===rc?"nom + référence":"nom plus long")}}
+    r._cand=cand;r._rn=rn;r._rc=rc});
+  /* une fiche générique de la base (nom court, sans référence) rapprochée de plusieurs articles différents n'est pas un doublon sûr */
+  const amb=new Map();rows.forEach(r=>{for(const[id,o]of r._cand)if(/tronqu|référence$/.test(o.why)){let st=amb.get(id);if(!st)amb.set(id,st=new Set());st.add(r._rc||r._rn)}});
+  rows.forEach((r,i)=>{const cand=r._cand,rn=r._rn,rc=r._rc;for(const[id,o]of cand)if((amb.get(id)?.size||0)>1&&/tronqu|référence$/.test(o.why)){o.sure=false;o.why+=" (fiche générique, plusieurs articles)"}
+    delete r._cand;delete r._rn;delete r._rc;
     const ids=[...cand.keys()].filter(id=>A()[id]);
     if(!ids.length){const k=rn+"|"+rc;if(seen.has(k)){r.plan={same:seen.get(k)};return}seen.set(k,i);r.plan={keep:null,sel:new Set(),cand:[]};return}
     const sc=id=>{const a=A()[id];return(cand.get(id).sure?1e10:0)+(Array.isArray(a.nomsExcel)&&a.nomsExcel.length?1e9:0)+(tot.get(id)||0)*10+(a.photo?5:0)};
