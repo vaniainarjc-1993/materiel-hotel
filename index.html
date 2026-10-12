@@ -769,6 +769,7 @@ function renderToolbar(){
       <select id="tb-g" class="tb-grp" aria-label="Groupe">${filterGroupOptions(ui.groupe)}</select>
       <div class="seg" role="group" aria-label="Photo">${[["","Tous"],["avec","Avec photo"],["sans","Sans photo"]].map(([k,l])=>`<button data-pf="${k}" aria-pressed="${(ui.photoF||"")===k}">${l} <span class="badge" id="pf-n-${k||"all"}"></span></button>`).join("")}</div>
       <label class="check pill"><input type="checkbox" id="tb-al" ${ui.alert?"checked":""}> Alertes seulement</label>
+      <button class="btn" id="tb-rst" title="Remettre tous les filtres à zéro : recherche, dépôts, groupe, photo, alertes">↺ Réinitialiser les filtres <span class="badge" id="rst-n" hidden></span></button>
       <div class="grow"></div>
       <button class="btn" id="tb-xl" title="Exporter en Excel les articles affichés selon les filtres (recherche, dépôts, groupe, photo, alertes)">⬇ Exporter la liste</button>
       <button class="btn" id="tb-pdfdep" title="PDF des matériels disponibles, dépôt par dépôt">📄 PDF par dépôt</button>
@@ -805,6 +806,7 @@ function renderToolbar(){
   on("tb-dup","click",()=>dupTool());
   on("tb-xl","click",()=>exportArticles());
   on("tb-pdfdep","click",()=>stockDepDlg());
+  on("tb-rst","click",()=>resetArtFilters());
   tb.querySelectorAll("[data-pf]").forEach(b=>b.onclick=()=>{ui.photoF=b.dataset.pf;artLimit=120;saveUi();renderToolbar();renderBody()});
   on("tb-mq","input",e=>{ui.mvQ=e.target.value;renderBody()});
   on("tb-tq","input",e=>{ui.trQ=e.target.value;renderBody()});
@@ -824,6 +826,10 @@ function renderToolbar(){
   const dd=$("#dd-dep");if(dd)dd.addEventListener("toggle",()=>{if(dd.open)buildDepPanel()});
   updDepUI();
 }
+/* ---------- réinitialisation des filtres articles ---------- */
+function artFilterCount(){return (ui.q.trim()?1:0)+(ui.groupe?1:0)+(ui.photoF?1:0)+(ui.alert?1:0)+(selDeps().length?1:0)}
+function resetArtFilters(){const n=artFilterCount();ui.q="";ui.groupe="";ui.photoF="";ui.alert=false;ui.deps=[];ui.depMode="any";artLimit=120;saveUi();renderToolbar();renderBody();toast(n?"Filtres réinitialisés : tous les articles sont affichés":"Aucun filtre actif")}
+function updRst(){const b=$("#tb-rst");if(!b)return;const n=artFilterCount(),bd=$("#rst-n");b.classList.toggle("primary",n>0);b.disabled=!n;if(bd){bd.hidden=!n;bd.textContent=n}}
 /* ---------- depot multi-filter ---------- */
 function setDeps(ids){ui.deps=[...new Set(ids)];artLimit=120;saveUi();updDepUI();renderBody()}
 function updDepUI(){
@@ -860,7 +866,7 @@ function renderBody(){
   // keep group select current
   const gs=$("#tb-g");if(gs){const h=filterGroupOptions(ui.groupe);if(gs.dataset.h!==h){gs.innerHTML=h;gs.dataset.h=h}}
   if(loaded.articles&&ui.groupe&&!usedGroups().some(g=>g.id===ui.groupe)){ui.groupe="";if(gs)gs.value=""}
-  updDepUI();
+  updDepUI();updRst();
   if($("#pf-n-all")){const base=artVis().filter(a=>depFilt(a)&&(!ui.groupe||a.groupeId===ui.groupe));const nw=base.filter(a=>a.photo&&(a.photo.asset||a.photo.data)).length;$("#pf-n-all").textContent=base.length;$("#pf-n-avec").textContent=nw;$("#pf-n-sans").textContent=base.length-nw}
   for(const[idn,dc]of[["#trs-n",false],["#dcl-n",true]]){const tn=$(idn);if(tn){const n=draftCount(dc);tn.hidden=!n;tn.textContent=n;tn.title=n+" brouillon(s) à valider"}}
   {const ivn=$("#inv-n");if(ivn){const n=invCount();ivn.hidden=!n;ivn.textContent=n;ivn.title=n+" inventaire(s) en cours"}}
@@ -959,7 +965,7 @@ function bindEmpty(b){b.querySelectorAll("[data-go]").forEach(x=>x.onclick=()=>{
 let artLimit=120;
 function renderArticles(b){
   const full=filteredArticles(),g=G(),u=U();const list=full.slice(0,artLimit);
-  if(!list.length){b.innerHTML=S.articles.length?`<div class="empty"><h3>Aucun article ne correspond</h3><p>Modifiez la recherche ou les filtres.</p></div>`:(loaded.articles?emptyStart():`<div class="empty"><p>Chargement des articles…</p></div>`);bindEmpty(b);return}
+  if(!list.length){b.innerHTML=S.articles.length?`<div class="empty"><h3>Aucun article ne correspond</h3><p>Modifiez la recherche ou les filtres.</p>${artFilterCount()?`<button class="btn primary" id="emp-rst">↺ Réinitialiser les filtres</button>`:""}</div>`:(loaded.articles?emptyStart():`<div class="empty"><p>Chargement des articles…</p></div>`);bindEmpty(b);{const er=$("#emp-rst",b);if(er)er.onclick=()=>resetArtFilters()}return}
   if(ui.view==="table"){
     const sd=selDeps(),dm=D();
     if(sd.length){
