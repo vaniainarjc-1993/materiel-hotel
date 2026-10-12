@@ -771,6 +771,7 @@ function renderToolbar(){
       <label class="check pill"><input type="checkbox" id="tb-al" ${ui.alert?"checked":""}> Alertes seulement</label>
       <div class="grow"></div>
       <button class="btn" id="tb-xl" title="Exporter en Excel les articles affichés selon les filtres (recherche, dépôts, groupe, photo, alertes)">⬇ Exporter la liste</button>
+      <button class="btn" id="tb-pdfdep" title="PDF des matériels disponibles, dépôt par dépôt">📄 PDF par dépôt</button>
       <div class="seg" role="group" aria-label="Affichage"><button data-v="cards" aria-pressed="${ui.view==="cards"}">Fiches</button><button data-v="table" aria-pressed="${ui.view==="table"}">Liste</button></div></div>
       <div class="depchips" id="depchips"></div>`;
   } else if(ui.tab==="mvts"){
@@ -803,6 +804,7 @@ function renderToolbar(){
   on("tb-al","change",e=>{ui.alert=e.target.checked;saveUi();renderBody()});
   on("tb-dup","click",()=>dupTool());
   on("tb-xl","click",()=>exportArticles());
+  on("tb-pdfdep","click",()=>stockDepDlg());
   tb.querySelectorAll("[data-pf]").forEach(b=>b.onclick=()=>{ui.photoF=b.dataset.pf;artLimit=120;saveUi();renderToolbar();renderBody()});
   on("tb-mq","input",e=>{ui.mvQ=e.target.value;renderBody()});
   on("tb-tq","input",e=>{ui.trQ=e.target.value;renderBody()});
@@ -987,6 +989,84 @@ async function exportArticles(){
     const tag=[ui.hotel!=="ALL"?ui.hotel:"",ui.groupe?(g[ui.groupe]?.nom||""):"",sd.length===1?deps[0]?.nom:""].filter(Boolean).join(" - ");
     XLSX.writeFile(wb,("LISTE ARTICLES "+(tag?tag+" ":"")+today()).replace(/[\\/:*?"<>|]/g," ")+".xlsx");toast(list.length+" article"+(list.length>1?"s":"")+" exporté"+(list.length>1?"s":""))
   }catch(x){toast((x&&x.message)||"Export impossible")}
+}
+/* ---------- Matériels disponibles par dépôt (PDF) ---------- */
+function stockDepDlg(){
+  const sd=selDeps(),deps=depotsVis().filter(d=>!/PERTE/i.test(d.nom||"")),nOf=id=>artVis().filter(a=>qty(a.id,id)>0).length;
+  const pre=new Set(sd.length?sd:deps.map(d=>d.id));
+  const m=openModal(`<header><h2>Matériels disponibles par dépôt (PDF)</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p style="margin:0">Un PDF A4 avec, pour chaque dépôt coché, la liste des articles en stock (photo, article, code, unité, quantité disponible), classée par groupe d'article, avec le total et les signatures. Chaque dépôt commence sur une nouvelle page.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" id="sd-all">Tout cocher</button><button class="btn sm ghost" id="sd-none">Tout décocher</button><input type="search" id="sd-q" placeholder="Filtrer les dépôts…" style="max-width:240px"></div>
+    <div class="list" id="sd-list" style="max-height:38vh;overflow:auto">${deps.map(d=>{const n=nOf(d.id);return`<label class="li check" data-n="${esc((d.nom||"").toLowerCase())}"><input type="checkbox" value="${d.id}" ${pre.has(d.id)&&n?"checked":""} ${n?"":"disabled"}><div class="t"><b>${esc(d.nom)}</b><span>${n} article${n>1?"s":""} en stock</span></div></label>`}).join("")}</div>
+    <label class="check"><input type="checkbox" id="sd-ph" checked> Avec les photos des articles</label>
+    <label class="check"><input type="checkbox" id="sd-f" ${ui.groupe||ui.q.trim()?"checked":""}> Appliquer les filtres actuels (recherche${ui.groupe?", groupe "+esc(G()[ui.groupe]?.nom||""):""})</label>
+    <div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn" id="sd-open">🖨 Ouvrir pour imprimer</button><button class="btn primary" id="sd-dl">⬇ Télécharger le PDF</button></footer>`);
+  const boxes=()=>[...m.querySelectorAll("#sd-list input:not(:disabled)")];
+  $("#sd-all",m).onclick=()=>boxes().forEach(b=>{if(b.closest("label").style.display!=="none")b.checked=true});$("#sd-none",m).onclick=()=>boxes().forEach(b=>b.checked=false);
+  $("#sd-q",m).oninput=e=>{const q=e.target.value.trim().toLowerCase();m.querySelectorAll("#sd-list label").forEach(l=>l.style.display=q&&!l.dataset.n.includes(q)?"none":"")};
+  const go=async openIt=>{const err=m.querySelector(".err");err.textContent="";const ids=boxes().filter(b=>b.checked).map(b=>b.value);if(!ids.length){err.textContent="Cochez au moins un dépôt.";return}
+    const btns=[...m.querySelectorAll("footer .btn")];btns.forEach(b=>b.disabled=true);const pb=$("#sd-dl",m),pt=pb.textContent;pb.textContent="Préparation du PDF…";
+    try{const bytes=await stockDepPdf(ids,{photos:$("#sd-ph",m).checked,filt:$("#sd-f",m).checked});const url=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+      const dm=D(),fn=("MATERIELS DISPONIBLES "+(ids.length===1?dm[ids[0]]?.nom:ui.hotel!=="ALL"?ui.hotel+" "+ids.length+" DEPOTS":ids.length+" DEPOTS")+" "+today()).replace(/[\\/:*?"<>|']/g," ")+".pdf";
+      if(openIt){const w=window.open(url,"_blank");if(!w)throw{message:"Ouverture bloquée par le navigateur : utilisez « Télécharger le PDF »."}}
+      else{const lk=document.createElement("a");lk.href=url;lk.download=fn;document.body.appendChild(lk);lk.click();lk.remove();toast("PDF téléchargé")}
+      setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(e){err.textContent="PDF impossible : "+((e&&e.message)||e)}finally{btns.forEach(b=>b.disabled=false);pb.textContent=pt}};
+  $("#sd-dl",m).onclick=()=>go(false);$("#sd-open",m).onclick=()=>go(true);
+}
+async function stockDepPdf(ids,opt){
+  const u=U(),dm=D(),g=G();const q=opt.filt?ui.q.trim().toLowerCase():"",fg=opt.filt?ui.groupe:"";
+  const match=a=>(!fg||a.groupeId===fg)&&(!q||((a.nom||"")+" "+(a.code||"")+" "+(g[a.groupeId]?.nom||"")+" "+(a.reference||"")+" "+(Array.isArray(a.nomsExcel)?a.nomsExcel.join(" "):"")).toLowerCase().includes(q));
+  const docs=ids.map(id=>{const ls=artVis().filter(a=>match(a)&&qty(a.id,id)>0).map(a=>({a,q:qty(a.id,id),gn:g[a.groupeId]?.nom||"SANS GROUPE"})).sort((x,y)=>x.gn.localeCompare(y.gn)||(x.a.nom||"").localeCompare(y.a.nom||""));return{dep:dm[id],ls}}).filter(d=>d.dep&&d.ls.length);
+  if(!docs.length)throw{message:"Aucun article en stock dans ces dépôts avec ces filtres."};
+  const imgs=opt.photos?await loadPdfImgs({ls:docs.flatMap(d=>d.ls.map(l=>({aid:l.a.id,src:photoSrc(l.a)}))).filter(x=>x.src)}):{},usedImg=new Set();
+  const W=595,H=842,M=28,TW=W-2*M;const pages=[];let ops,cur;const newPage=()=>{ops=[];pages.push({ops,doc:cur})};
+  const enc=s=>{let o="";for(const ch of String(s)){const c=ch.codePointAt(0);let b;if(c<128||(c>=160&&c<256))b=c;else b={8364:128,8218:130,8222:132,8230:133,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,338:140,339:156,8482:153,215:215,8722:45,8239:32,8201:32,8202:32}[c]??63;const x=String.fromCharCode(b);o+=(x==="("||x===")"||x==="\\")?"\\"+x:x}return o};
+  const col=(r,gg,b,fill)=>ops.push(`${(r/255).toFixed(3)} ${(gg/255).toFixed(3)} ${(b/255).toFixed(3)} ${fill?"rg":"RG"}`);
+  const text=(x,y,s,size=9,bold=false,align="left")=>{let xx=x;if(align!=="left"){const w=pdfW(s,size,bold);xx=align==="right"?x-w:x-w/2}ops.push(`BT /${bold?"F2":"F1"} ${size} Tf ${xx.toFixed(2)} ${(H-y).toFixed(2)} Td (${enc(s)}) Tj ET`)};
+  const rect=(x,y,w,h,fill)=>ops.push(`${x.toFixed(2)} ${(H-y-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill?"f":"S"}`);
+  const line=(x1,y1,x2,y2)=>ops.push(`${x1.toFixed(2)} ${(H-y1).toFixed(2)} m ${x2.toFixed(2)} ${(H-y2).toFixed(2)} l S`);
+  const ph=opt.photos;const cols=ph?[["N°",26,"c"],["Photo",52,"c"],["Article",253,"l"],["Code",86,"c"],["Unité",48,"c"],["Quantité disponible",74,"c"]]:[["N°",26,"c"],["Article",305,"l"],["Code",86,"c"],["Unité",48,"c"],["Quantité disponible",74,"c"]];
+  const AI=ph?2:1,bottom=H-M-22,minH=ph?40:18,titre="MATÉRIELS DISPONIBLES PAR DÉPÔT";
+  for(const d of docs){cur=d;let y;const tot=d.ls.reduce((s,l)=>s+l.q,0),ng=new Set(d.ls.map(l=>l.gn)).size;
+    const header=first=>{text(W/2,M+16,titre,first?16:11,true,"center");text(W/2,M+(first?31:28),d.dep.nom,first?11:9.5,true,"center");return M+(first?42:36)};
+    const thead=()=>{col(225,230,228,true);rect(M,y,TW,22,true);col(0,0,0,true);let x=M;for(const[c,w,al]of cols){const ls=pdfWrap(c.toUpperCase(),7,true,w-6);ls.forEach((s,k)=>al==="l"?text(x+4,y+9+k*8-(ls.length-1)*3,s,7,true):text(x+w/2,y+9+k*8-(ls.length-1)*3,s,7,true,"center"));x+=w}
+      col(120,120,120);rect(M,y,TW,22);x=M;for(const[,w]of cols.slice(0,-1)){x+=w;line(x,y,x,y+22)}col(0,0,0);y+=22};
+    const gRow=lbl=>{col(236,240,238,true);rect(M,y,TW,16,true);col(0,0,0,true);text(M+6,y+11.5,lbl,8.5,true);col(160,160,160);rect(M,y,TW,16);col(0,0,0);y+=16};
+    newPage();y=header(true);
+    const info=[["Dépôt",d.dep.nom],["Hôtel",d.dep.hotel==="LES2"?"Les deux":(d.dep.hotel||"—")],["Date",fdt(Date.now())],["Articles / quantité",`${d.ls.length} articles · ${fmt(tot)} unités`]],iw=[190,70,90,TW-350];let ix=M;
+    col(242,244,243,true);rect(M,y,TW,38,true);col(0,0,0,true);info.forEach(([k,v],i)=>{text(ix+6,y+11,k.toUpperCase(),6.5);pdfWrap(v,8.5,true,iw[i]-12).slice(0,2).forEach((vv,k2)=>text(ix+6,y+22+k2*9.5,vv,8.5,true));ix+=iw[i]});y+=44;
+    if(opt.filt&&(q||fg)){text(M,y+6,"FILTRE : "+[fg?"groupe "+(g[fg]?.nom||""):"",q?"recherche « "+ui.q.trim()+" »":""].filter(Boolean).join(", "),8);y+=14}
+    thead();let lastG=null,num=0,gTot=0;
+    const gEnd=()=>{if(lastG===null)return;if(y+14>bottom){newPage();y=header(false);thead()}col(110,110,110,true);text(W-M-6,y+10,`Sous-total ${lastG} : ${fmt(gTot)}`,7.5,true,"right");col(0,0,0,true);y+=14};
+    for(const l of d.ls){const a=l.a,nl=pdfWrap(a.nom||"",8.5,false,cols[AI][1]-8),rh=Math.max(minH,nl.length*10.5+8);
+      if(l.gn!==lastG){gEnd();if(y+16+rh>bottom){newPage();y=header(false);thead()}gRow(l.gn+` (${d.ls.filter(x=>x.gn===l.gn).length})`);lastG=l.gn;gTot=0}
+      if(y+rh>bottom){newPage();y=header(false);thead();gRow(l.gn+" (suite)")}
+      num++;gTot+=l.q;const ty=n=>y+(rh-n*10.5)/2+8;let x=M;const un=u[a.uniteId],unit=un?.abrev||un?.nom||"";
+      text(x+cols[0][1]/2,ty(1),String(num),8,false,"center");x+=cols[0][1];
+      if(ph){const cw=cols[1][1],im=imgs[a.id];if(im){const box=cw-8,sc=Math.min(box/im.w,(rh-8)/im.h),iw2=im.w*sc,ih=im.h*sc;ops.push(`q ${iw2.toFixed(2)} 0 0 ${ih.toFixed(2)} ${(x+4+(box-iw2)/2).toFixed(2)} ${(H-y-(rh-ih)/2-ih).toFixed(2)} cm /${im.name} Do Q`);usedImg.add(im.name)}else{col(150,150,150,true);text(x+cw/2,ty(1),"—",9,false,"center");col(0,0,0,true)}x+=cw}
+      nl.forEach((s,k)=>text(x+4,ty(nl.length)+k*10.5,s,8.5,false));x+=cols[AI][1];
+      const cl=pdfWrap(a.code||"",7.5,false,cols[AI+1][1]-6).slice(0,2);cl.forEach((s,k)=>text(x+cols[AI+1][1]/2,ty(cl.length)+k*9,s,7.5,false,"center"));x+=cols[AI+1][1];
+      text(x+cols[AI+2][1]/2,ty(1),unit,8,false,"center");x+=cols[AI+2][1];text(x+cols[AI+3][1]/2,ty(1),fmt(l.q),9.5,true,"center");
+      col(160,160,160);rect(M,y,TW,rh);x=M;for(const[,w]of cols.slice(0,-1)){x+=w;line(x,y,x,y+rh)}col(0,0,0);y+=rh}
+    gEnd();
+    if(y+20>bottom){newPage();y=header(false)}col(242,244,243,true);rect(M,y,TW,20,true);col(0,0,0,true);text(M+6,y+13.5,`TOTAL ${d.dep.nom} : ${d.ls.length} articles · ${ng} groupe${ng>1?"s":""}`,8.5,true);text(W-M-6,y+13.5,fmt(tot),9.5,true,"right");col(160,160,160);rect(M,y,TW,20);col(0,0,0);y+=34;
+    if(y+60>bottom){newPage();y=header(false)}const SG=["Responsable du dépôt","Cost Control","Contrôleur interne"],sw=TW/3;
+    text(M,y,"Date :",9.5);col(120,120,120);line(M+34,y+2,M+180,y+2);col(0,0,0);y+=18;
+    SG.forEach((s2,i)=>{const x=M+i*sw;text(x,y,s2,9.5,true);text(x,y+17,"Nom :",8.5);text(x,y+35,"Signature :",8.5);col(120,120,120);line(x+30,y+19,x+sw-20,y+19);line(x+52,y+37,x+sw-20,y+37);col(0,0,0)});y+=48}
+  const byDoc=new Map();pages.forEach(p=>{if(!byDoc.has(p.doc))byDoc.set(p.doc,[]);byDoc.get(p.doc).push(p)});let pg=0;
+  for(const[d,ps]of byDoc)ps.forEach((p,i)=>{pg++;ops=p.ops;col(110,110,110,true);text(M,H-14,`Matériels disponibles — ${d.dep.nom}`,7);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${ps.length}${docs.length>1?` (${pg}/${pages.length})`:""}`,7,false,"right");col(0,0,0,true)});
+  const objs=[];const add=s=>{objs.push(s);return objs.length};
+  const font1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),font2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  const pagesId=objs.length+1;objs.push(null);const kids=[];
+  const xo=[];for(const im of Object.values(imgs))if(usedImg.has(im.name))xo.push(`/${im.name} ${add(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bin.length} >>\nstream\n${im.bin}\nendstream`)} 0 R`);
+  const xres=xo.length?` /XObject << ${xo.join(" ")} >>`:"";
+  for(const p of pages){const c=p.ops.join("\n");const cid=add(`<< /Length ${c.length} >>\nstream\n${c}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >>${xres} >> /Contents ${cid} 0 R >>`))}
+  objs[pagesId-1]=`<< /Type /Pages /Kids [${kids.map(k=>k+" 0 R").join(" ")}] /Count ${kids.length} >>`;
+  const cat=add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`),inf=add(`<< /Title (${enc("Materiels disponibles par depot")}) /Producer (Materiel Hotel) >>`);
+  let out="%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";const offs=[];objs.forEach((o,i)=>{offs.push(out.length);out+=`${i+1} 0 obj\n${o}\nendobj\n`});
+  const xref=out.length;out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+offs.map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")+`trailer\n<< /Size ${objs.length+1} /Root ${cat} 0 R /Info ${inf} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const bytes=new Uint8Array(out.length);for(let i=0;i<out.length;i++)bytes[i]=out.charCodeAt(i)&255;return bytes;
 }
 function hotelChip(h){if(!h||h==="LES2")return`<span class="chip">Les deux</span>`;return`<span class="chip h-${h}">${h}</span>`}
 
@@ -2562,7 +2642,7 @@ async function invPdf(list,kind){
   const docs=list.map(t=>{const ls=invLines(t);return{t,ls,s:invStats(t)}});
   const imgs=await loadPdfImgs({ls:docs.flatMap(d=>d.ls.map(l=>({aid:l.aid,src:photoSrc(l.ar)}))).filter(x=>x.src)}),usedImg=new Set();
   const W=595,H=842,M=28,TW=W-2*M;const pages=[];let ops,cur;const newPage=()=>{ops=[];pages.push({ops,doc:cur})};
-  const enc=s=>{let o="";for(const ch of String(s)){const c=ch.codePointAt(0);let b;if(c<128||(c>=160&&c<256))b=c;else b={8364:128,8218:130,8222:132,8230:133,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,338:140,339:156,8482:153,215:215,8722:45}[c]??63;const x=String.fromCharCode(b);o+=(x==="("||x===")"||x==="\\")?"\\"+x:x}return o};
+  const enc=s=>{let o="";for(const ch of String(s)){const c=ch.codePointAt(0);let b;if(c<128||(c>=160&&c<256))b=c;else b={8364:128,8218:130,8222:132,8230:133,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,338:140,339:156,8482:153,215:215,8722:45,8239:32,8201:32,8202:32}[c]??63;const x=String.fromCharCode(b);o+=(x==="("||x===")"||x==="\\")?"\\"+x:x}return o};
   const col=(r,g,b,fill)=>ops.push(`${(r/255).toFixed(3)} ${(g/255).toFixed(3)} ${(b/255).toFixed(3)} ${fill?"rg":"RG"}`);
   const text=(x,y,s,size=9,bold=false,align="left")=>{let xx=x;if(align!=="left"){const w=pdfW(s,size,bold);xx=align==="right"?x-w:x-w/2}ops.push(`BT /${bold?"F2":"F1"} ${size} Tf ${xx.toFixed(2)} ${(H-y).toFixed(2)} Td (${enc(s)}) Tj ET`)};
   const rect=(x,y,w,h,fill)=>ops.push(`${x.toFixed(2)} ${(H-y-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill?"f":"S"}`);
