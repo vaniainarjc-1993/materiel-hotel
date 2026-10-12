@@ -995,7 +995,7 @@ function stockDepDlg(){
   const sd=selDeps(),deps=depotsVis().filter(d=>!/PERTE/i.test(d.nom||"")),nOf=id=>artVis().filter(a=>qty(a.id,id)>0).length;
   const pre=new Set(sd.length?sd:deps.map(d=>d.id));
   const m=openModal(`<header><h2>Matériels disponibles par dépôt (PDF)</h2><button class="btn ghost sm" data-close>Fermer</button></header>
-   <div class="mb"><p style="margin:0">Un PDF A4 avec, pour chaque dépôt coché, la liste des articles en stock (photo, article, code, unité, quantité disponible), classée par groupe d'article, avec le total et les signatures. Chaque dépôt commence sur une nouvelle page.</p>
+   <div class="mb"><p style="margin:0">Un PDF A4 avec, pour chaque dépôt coché, la liste des articles en stock (photo, article, code, unité, quantité disponible), classée par groupe d'article, avec le total. Chaque dépôt commence sur une nouvelle page.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" id="sd-all">Tout cocher</button><button class="btn sm ghost" id="sd-none">Tout décocher</button><input type="search" id="sd-q" placeholder="Filtrer les dépôts…" style="max-width:240px"></div>
     <div class="list" id="sd-list" style="max-height:38vh;overflow:auto">${deps.map(d=>{const n=nOf(d.id);return`<label class="li check" data-n="${esc((d.nom||"").toLowerCase())}"><input type="checkbox" value="${d.id}" ${pre.has(d.id)&&n?"checked":""} ${n?"":"disabled"}><div class="t"><b>${esc(d.nom)}</b><span>${n} article${n>1?"s":""} en stock</span></div></label>`}).join("")}</div>
     <label class="check"><input type="checkbox" id="sd-ph" checked> Avec les photos des articles</label>
@@ -1051,9 +1051,7 @@ async function stockDepPdf(ids,opt){
       col(160,160,160);rect(M,y,TW,rh);x=M;for(const[,w]of cols.slice(0,-1)){x+=w;line(x,y,x,y+rh)}col(0,0,0);y+=rh}
     gEnd();
     if(y+20>bottom){newPage();y=header(false)}col(242,244,243,true);rect(M,y,TW,20,true);col(0,0,0,true);text(M+6,y+13.5,`TOTAL ${d.dep.nom} : ${d.ls.length} articles · ${ng} groupe${ng>1?"s":""}`,8.5,true);text(W-M-6,y+13.5,fmt(tot),9.5,true,"right");col(160,160,160);rect(M,y,TW,20);col(0,0,0);y+=34;
-    if(y+60>bottom){newPage();y=header(false)}const SG=["Responsable du dépôt","Cost Control","Contrôleur interne"],sw=TW/3;
-    text(M,y,"Date :",9.5);col(120,120,120);line(M+34,y+2,M+180,y+2);col(0,0,0);y+=18;
-    SG.forEach((s2,i)=>{const x=M+i*sw;text(x,y,s2,9.5,true);text(x,y+17,"Nom :",8.5);text(x,y+35,"Signature :",8.5);col(120,120,120);line(x+30,y+19,x+sw-20,y+19);line(x+52,y+37,x+sw-20,y+37);col(0,0,0)});y+=48}
+  }
   const byDoc=new Map();pages.forEach(p=>{if(!byDoc.has(p.doc))byDoc.set(p.doc,[]);byDoc.get(p.doc).push(p)});let pg=0;
   for(const[d,ps]of byDoc)ps.forEach((p,i)=>{pg++;ops=p.ops;col(110,110,110,true);text(M,H-14,`Matériels disponibles — ${d.dep.nom}`,7);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${ps.length}${docs.length>1?` (${pg}/${pages.length})`:""}`,7,false,"right");col(0,0,0,true)});
   const objs=[];const add=s=>{objs.push(s);return objs.length};
