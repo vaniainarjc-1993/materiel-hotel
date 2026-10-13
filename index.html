@@ -692,7 +692,16 @@ function toast(msg){const t=document.createElement("div");t.className="toast";t.
 
 /* ---------- derived data ---------- */
 function G(){return by(S.groupes)} function U(){return by(S.unites)} function D(){return by(S.depots)} function A(){return by(S.articles)}
-const depKey=d=>(d.hotel==="LES2"?"0":d.hotel)+d.nom;
+const DEPTS=["F&B","CUISINE","H&K","RESERVATION","SPA","TECHNIQUE","SECURITE","FINANCES","DIRECTION"];
+function deptGuess(nom){const n=String(nom||"").toUpperCase();
+  if(/CUISINE/.test(n))return"CUISINE";if(/SPA\b/.test(n))return"SPA";if(/RESERVATION|RECEPTION/.test(n))return"RESERVATION";
+  if(/HOUSEKEEPING|CHAMBRE|LINGERIE|ETAGE/.test(n))return"H&K";if(/SECURIT/.test(n))return"SECURITE";if(/DIRECTION/.test(n))return"DIRECTION";
+  if(/MAINTENANCE|TECHNIQUE|INFORMATIQUE|EXTERIEUR/.test(n))return"TECHNIQUE";
+  if(/BANQUET|BAR\b|SKYBAR|RESTAURANT|TRIO|RAVINALA|TEPPANYAKI|CONVENTION|LOBBY/.test(n))return"F&B";
+  if(/ECONOMAT|LOGISTIQUE|PERTE|GENERAL|MAGASIN/.test(n))return"FINANCES";return""}
+const depDept=d=>(d&&(d.departement||deptGuess(d.nom)))||"";
+const deptIdx=x=>{const i=DEPTS.indexOf(x);return i<0?99:i};
+const depKey=d=>String(deptIdx(depDept(d))).padStart(2,"0")+(d.hotel==="LES2"?"0":d.hotel)+d.nom;
 function depotsVis(){return S.depots.filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2").sort((a,b)=>depKey(a).localeCompare(depKey(b)))}
 function artVis(){return S.articles.filter(a=>ui.hotel==="ALL"||!a.hotel||a.hotel==="LES2"||a.hotel===ui.hotel)}
 let stockMap={};
@@ -849,11 +858,11 @@ function buildDepPanel(){
   const fq=(p.dataset.q||"").toLowerCase();
   p.innerHTML=`<input type="search" id="dep-q" placeholder="Chercher un dépôt…" value="${esc(p.dataset.q||"")}">
     <div class="dd-row"><span class="hint">Article présent dans</span><span class="mode" role="group" aria-label="Mode"><button data-m="any" aria-pressed="${ui.depMode==="any"}">au moins un</button><button data-m="all" aria-pressed="${ui.depMode==="all"}">tous</button></span><span class="grow"></span><button class="btn ghost sm" id="dep-none">Aucun</button></div>
-    <div id="dep-list"><label class="dep-opt dep-all"><input type="checkbox" id="dep-all" ${deps.length&&deps.every(d=>ui.deps.includes(d.id))?"checked":""}><span><b>TOUS LES DÉPÔTS</b></span><span class="n">${deps.length}</span></label>${grp.map(([h,lbl])=>{const ds=deps.filter(d=>d.hotel===h&&(!fq||d.nom.toLowerCase().includes(fq)));if(!ds.length)return"";const allH=ds.every(d=>ui.deps.includes(d.id));return`<label class="dd-h dep-grp" style="color:var(--${h==="IBIS"?"ibs":h==="LES2"?"accent":"novo"})"><input type="checkbox" data-grp="${h}" ${allH?"checked":""}> ${h==="LES2"?lbl:"TOUS "+lbl}</label>`+ds.map(d=>`<label class="dep-opt"><input type="checkbox" value="${d.id}" ${ui.deps.includes(d.id)?"checked":""}><span>${esc(d.nom)}</span><span class="n" title="Articles présents">${cnt[d.id]}</span></label>`).join("")}).join("")||`<p class="hint">Aucun dépôt trouvé.</p>`}</div>`;
+    <div id="dep-list"><label class="dep-opt dep-all"><input type="checkbox" id="dep-all" ${deps.length&&deps.every(d=>ui.deps.includes(d.id))?"checked":""}><span><b>TOUS LES DÉPÔTS</b></span><span class="n">${deps.length}</span></label>${[...DEPTS,""].map(h=>{const ds=deps.filter(d=>depDept(d)===h&&(!fq||d.nom.toLowerCase().includes(fq)||h.toLowerCase().includes(fq)));if(!ds.length)return"";const allH=ds.every(d=>ui.deps.includes(d.id));return`<label class="dd-h dep-grp" style="color:var(--accent)"><input type="checkbox" data-grp="${esc(h)}" ${allH?"checked":""}> ${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"} <span class="n">${ds.length}</span></label>`+ds.map(d=>`<label class="dep-opt"><input type="checkbox" value="${d.id}" ${ui.deps.includes(d.id)?"checked":""}><span style="color:var(--${d.hotel==="IBIS"?"ibs":d.hotel==="LES2"?"ink":"novo"})">${esc(d.nom)}</span><span class="n" title="Articles présents">${cnt[d.id]}</span></label>`).join("")}).join("")||`<p class="hint">Aucun dépôt trouvé.</p>`}</div>`;
   const q=$("#dep-q",p);q.oninput=()=>{p.dataset.q=q.value;const pos=q.selectionStart;buildDepPanel();const nq=$("#dep-q",p);nq.focus();try{nq.setSelectionRange(pos,pos)}catch(e){}};
   p.querySelectorAll("#dep-list input[type=checkbox][value]").forEach(cb=>cb.onchange=()=>{setDeps(cb.checked?[...ui.deps,cb.value]:ui.deps.filter(x=>x!==cb.value));buildDepPanel()});
   $("#dep-all",p).onchange=e=>{setDeps(e.target.checked?deps.map(d=>d.id):[]);buildDepPanel()};
-  p.querySelectorAll("[data-grp]").forEach(cb=>cb.onchange=()=>{const ids=deps.filter(d=>d.hotel===cb.dataset.grp&&(!fq||d.nom.toLowerCase().includes(fq))).map(d=>d.id);setDeps(cb.checked?[...ui.deps,...ids]:ui.deps.filter(x=>!ids.includes(x)));buildDepPanel()});
+  p.querySelectorAll("[data-grp]").forEach(cb=>cb.onchange=()=>{const ids=deps.filter(d=>depDept(d)===cb.dataset.grp&&(!fq||d.nom.toLowerCase().includes(fq)||cb.dataset.grp.toLowerCase().includes(fq))).map(d=>d.id);setDeps(cb.checked?[...ui.deps,...ids]:ui.deps.filter(x=>!ids.includes(x)));buildDepPanel()});
   p.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ui.depMode=b.dataset.m;p.querySelectorAll("[data-m]").forEach(x=>x.setAttribute("aria-pressed",x===b));saveUi();updDepUI();renderBody()});
   $("#dep-none",p).onclick=()=>{setDeps([]);buildDepPanel()};
 }
@@ -1003,7 +1012,7 @@ function stockDepDlg(){
   const m=openModal(`<header><h2>Matériels disponibles par dépôt (PDF)</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb"><p style="margin:0">Un PDF A4 avec, pour chaque dépôt coché, la liste des articles en stock (photo, article, code, unité, quantité disponible), classée par groupe d'article, avec le total. Chaque dépôt commence sur une nouvelle page.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" id="sd-all">Tout cocher</button><button class="btn sm ghost" id="sd-none">Tout décocher</button><input type="search" id="sd-q" placeholder="Filtrer les dépôts…" style="max-width:240px"></div>
-    <div class="list" id="sd-list" style="max-height:38vh;overflow:auto">${deps.map(d=>{const n=nOf(d.id);return`<label class="li check" data-n="${esc((d.nom||"").toLowerCase())}"><input type="checkbox" value="${d.id}" ${pre.has(d.id)&&n?"checked":""} ${n?"":"disabled"}><div class="t"><b>${esc(d.nom)}</b><span>${n} article${n>1?"s":""} en stock</span></div></label>`}).join("")}</div>
+    <div class="list" id="sd-list" style="max-height:38vh;overflow:auto">${deps.map((d,i)=>{const n=nOf(d.id),h=depDept(d),hd=i===0||depDept(deps[i-1])!==h?`<div class="dd-h" style="margin:8px 0 2px;color:var(--accent);font-weight:700">${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"}</div>`:"";return hd+`<label class="li check" data-n="${esc(((d.nom||"")+" "+depDept(d)).toLowerCase())}"><input type="checkbox" value="${d.id}" ${pre.has(d.id)&&n?"checked":""} ${n?"":"disabled"}><div class="t"><b>${esc(d.nom)}</b><span>${n} article${n>1?"s":""} en stock</span></div></label>`}).join("")}</div>
     <label class="check"><input type="checkbox" id="sd-ph" checked> Avec les photos des articles</label>
     <label class="check"><input type="checkbox" id="sd-f" ${ui.groupe||ui.q.trim()?"checked":""}> Appliquer les filtres actuels (recherche${ui.groupe?", groupe "+esc(G()[ui.groupe]?.nom||""):""})</label>
     <div class="err"></div></div>
@@ -1040,7 +1049,7 @@ async function stockDepPdf(ids,opt){
       col(120,120,120);rect(M,y,TW,22);x=M;for(const[,w]of cols.slice(0,-1)){x+=w;line(x,y,x,y+22)}col(0,0,0);y+=22};
     const gRow=lbl=>{col(236,240,238,true);rect(M,y,TW,16,true);col(0,0,0,true);text(M+6,y+11.5,lbl,8.5,true);col(160,160,160);rect(M,y,TW,16);col(0,0,0);y+=16};
     newPage();y=header(true);
-    const info=[["Dépôt",d.dep.nom],["Hôtel",d.dep.hotel==="LES2"?"Les deux":(d.dep.hotel||"—")],["Date",fdt(Date.now())],["Articles / quantité",`${d.ls.length} articles · ${fmt(tot)} unités`]],iw=[190,70,90,TW-350];let ix=M;
+    const info=[["Dépôt",d.dep.nom],["Département",depDept(d.dep)||"—"],["Hôtel",d.dep.hotel==="LES2"?"Les deux":(d.dep.hotel||"—")],["Date",fdt(Date.now())],["Articles / quantité",`${d.ls.length} articles · ${fmt(tot)} unités`]],iw=[170,78,58,82,TW-388];let ix=M;
     col(242,244,243,true);rect(M,y,TW,38,true);col(0,0,0,true);info.forEach(([k,v],i)=>{text(ix+6,y+11,k.toUpperCase(),6.5);pdfWrap(v,8.5,true,iw[i]-12).slice(0,2).forEach((vv,k2)=>text(ix+6,y+22+k2*9.5,vv,8.5,true));ix+=iw[i]});y+=44;
     if(opt.filt&&(q||fg)){text(M,y+6,"FILTRE : "+[fg?"groupe "+(g[fg]?.nom||""):"",q?"recherche « "+ui.q.trim()+" »":""].filter(Boolean).join(", "),8);y+=14}
     thead();let lastG=null,num=0,gTot=0;
@@ -1145,7 +1154,8 @@ window.accessPanel=function(){
   const resetForm=()=>{editKey=null;["#ac-nom","#ac-mail"].forEach(s=>$(s,m).value="");$("#ac-mail",m).disabled=false;$("#ac-dept",m).value="";$("#ac-role",m).value="contrib";$("#ac-title",m).textContent="Nouveau compte";$("#ac-add",m).textContent="Créer le compte";$("#ac-cancel",m).hidden=true;$("#ac-pwl",m).hidden=false;$("#ac-pwinfo",m).hidden=true;$("#ac-pw",m).value=genPw()};
   const genPw=()=>{const A="ABCDEFGHJKLMNPQRSTUVWXYZ",a="abcdefghjkmnpqrstuvwxyz",d="23456789",r=x=>x[crypto.getRandomValues(new Uint32Array(1))[0]%x.length];return r(A)+r(a)+r(a)+r(a)+r(a)+r(d)+r(d)+r(d)+r(d)};
   $("#ac-pw",m).value=genPw();$("#ac-gen",m).onclick=()=>{$("#ac-pw",m).value=genPw()};
-  const off1=F.onValue(F.ref(F.rdb,"departements"),s=>{if(!m.isConnected){off1();return}deps=s.val()||{};drawDeps()});
+  let seeded=false;const off1=F.onValue(F.ref(F.rdb,"departements"),s=>{if(!m.isConnected){off1();return}deps=s.val()||{};drawDeps();
+    if(!seeded){seeded=true;const have=new Set(Object.values(deps).map(d=>String(d.nom||"").toUpperCase()));for(const n of DEPTS)if(!have.has(n))F.set(F.ref(F.rdb,"departements/"+n.replace(/&/g,"-").replace(/[^A-Z0-9-]+/g,"-").toLowerCase()),{nom:n,cree:Date.now()}).catch(()=>{})}});
   const off2=F.onValue(F.ref(F.rdb,"acces"),s=>{if(!m.isConnected){off2();return}const v=s.val()||{};accs={};for(const[k,x]of Object.entries(v))accs[k]=F.parseAcc(x);drawAccs()});
   $("#dp-add",m).onclick=async()=>{const n=$("#dp-nom",m).value.trim().toUpperCase();err.textContent="";if(!n){err.textContent="Saisissez le nom du département.";return}
     if(depNames().includes(n)){err.textContent="Ce département existe déjà.";return}
@@ -1205,13 +1215,14 @@ function renderParams(b){
   const deps=S.depots.slice().sort(depSort).filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2");
   const isAdm=window.FB&&window.FB.role()==="admin";
   b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
-   <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2><div class="list">${deps.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
+   <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2>${w&&deps.some(d=>!d.departement&&deptGuess(d.nom))?`<div class="lock" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px">${deps.filter(d=>!d.departement&&deptGuess(d.nom)).length} dépôt(s) classé(s) automatiquement (proposé). Vérifiez puis enregistrez.</span><button class="btn sm primary" id="dp-save">Enregistrer les départements proposés</button></div>`:""}<div class="list">${[...DEPTS,""].map(h=>{const ds=deps.filter(d=>depDept(d)===h);if(!ds.length)return"";return`<div class="dd-h" style="margin:10px 0 2px;color:var(--accent);font-weight:700">${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"} <span class="hint">· ${ds.length} dépôt${ds.length>1?"s":""}</span></div>`+ds.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${d.hotel==="LES2"?"Commun aux deux · ":""}${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock${!d.departement&&h?" · <i>département proposé</i>":""}</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
    <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
   </div>`;
   b.querySelectorAll("[data-new]").forEach(x=>x.onclick=()=>refForm(x.dataset.new));
   const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const dpb=$("#adm-dup",b);if(dpb)dpb.onclick=()=>dupTool();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
   b.querySelectorAll("[data-ed]").forEach(x=>x.onclick=()=>{const[c,id]=x.dataset.ed.split(":");refForm(c,S[c].find(r=>r.id===id))});
+  const dps=$("#dp-save",b);if(dps)dps.onclick=()=>confirmInline(dps,"Confirmer l'enregistrement ?",async()=>{dps.disabled=true;try{let n=0;for(const d of S.depots){if(d.departement)continue;const g=deptGuess(d.nom);if(!g)continue;await db.collection("depots").doc(d.id).update({departement:g});n++}toast(n+" dépôt(s) classé(s) par département")}catch(e){toast(errText(e));dps.disabled=false}});
 }
 
 /* ---------- Modal helpers ---------- */
@@ -1238,6 +1249,7 @@ function refForm(coll,row){
   let fields="";
   if(coll==="depots")fields=`<label class="f full">Nom du dépôt<input type="text" id="r-nom" value="${esc(row?.nom||"")}" placeholder="Ex. BAR MATERIEL (le nom de l'hôtel est ajouté devant)"></label>
     <label class="f">Hôtel<select id="r-hotel">${HOTELS.map(h=>`<option ${row?.hotel===h||(!row&&ui.hotel===h)?"selected":""}>${h}</option>`).join("")}<option value="LES2" ${row?.hotel==="LES2"?"selected":""}>Commun aux deux</option></select></label>
+    <label class="f">Département<select id="r-dept"><option value="">— Aucun —</option>${DEPTS.map(x=>`<option ${(row?depDept(row):"")===x?"selected":""}>${esc(x)}</option>`).join("")}</select></label>
     <label class="f">Emplacement<input type="text" id="r-emp" value="${esc(row?.emplacement||"")}" placeholder="Ex. Sous-sol, bâtiment B"></label>`;
   if(coll==="groupes")fields=`<label class="f full">Nom du groupe<input type="text" id="r-nom" value="${esc(row?.nom||"")}" placeholder="Ex. Linge de chambre"></label>
     <label class="f">Couleur<select id="r-col">${GROUP_COLORS.map((c,i)=>`<option value="${c}" ${(row?.couleur||GROUP_COLORS[S.groupes.length%GROUP_COLORS.length])===c?"selected":""} style="color:${c}">● Couleur ${i+1}</option>`).join("")}</select></label>`;
@@ -1248,7 +1260,7 @@ function refForm(coll,row){
   $("#r-save",m).onclick=()=>guard(m,async()=>{
     const nom=coll==="unites"?$("#r-nom",m).value.trim():$("#r-nom",m).value.trim().toUpperCase();if(!nom)throw{message:"Le nom est obligatoire."};
     const data={nom};
-    if(coll==="depots"){data.hotel=$("#r-hotel",m).value;data.nom=data.nom.replace(/^(IBIS|NOVOTEL)\s+/,"");if(data.hotel!=="LES2")data.nom=data.hotel+" "+data.nom;data.emplacement=$("#r-emp",m).value.trim().toUpperCase()}
+    if(coll==="depots"){data.hotel=$("#r-hotel",m).value;data.nom=data.nom.replace(/^(IBIS|NOVOTEL)\s+/,"");if(data.hotel!=="LES2")data.nom=data.hotel+" "+data.nom;data.emplacement=$("#r-emp",m).value.trim().toUpperCase();data.departement=$("#r-dept",m).value}
     if(coll==="groupes")data.couleur=$("#r-col",m).value;
     if(coll==="unites")data.abrev=$("#r-abr",m).value.trim();
     if(row)await db.collection(coll).doc(row.id).update(data);else await db.collection(coll).add(data);
