@@ -568,15 +568,26 @@ const photoCache=new Map(),pending=new Map();let idb=null;
 const idbOpen=()=>idb||(idb=new Promise(res=>{try{const r=indexedDB.open("mh-photos",1);r.onupgradeneeded=()=>r.result.createObjectStore("p");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}}));
 const idbGet=async k=>{const d=await idbOpen();if(!d)return null;return new Promise(res=>{try{const q=d.transaction("p").objectStore("p").get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(e){res(null)}})};
 const idbPut=async(k,v)=>{const d=await idbOpen();if(!d)return;try{d.transaction("p","readwrite").objectStore("p").put(v,k)}catch(e){}};
+/* redimensionnement automatique : toute photo enregistrée est ramenée à 1024 px max et ~170 Ko */
+function optimizeDataUrl(d,max=1024,maxLen=170000){return new Promise(res=>{if(!d||!/^data:image/.test(d))return res(d);const i=new Image();i.onload=()=>{try{const w=i.naturalWidth,h=i.naturalHeight;if(Math.max(w,h)<=max&&d.length<=maxLen&&/^data:image\/jpeg/.test(d))return res(d);
+  const sc=Math.min(1,max/Math.max(w,h)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(w*sc));c.height=Math.max(1,Math.round(h*sc));const x=c.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(i,0,0,c.width,c.height);
+  let q=.82,o=c.toDataURL("image/jpeg",q);while(o.length>maxLen&&q>.5){q-=.08;o=c.toDataURL("image/jpeg",q)}res(o.length<d.length||Math.max(w,h)>max?o:d)}catch(e){res(d)}};i.onerror=()=>res(d);i.src=d})}
+/* vignettes (360 px) pour les listes : beaucoup plus légères à afficher que la photo entière */
+const thumbCache=new Map(),thumbPend=new Map();
+function makeThumb(d,max=360){return new Promise(res=>{const i=new Image();i.onload=()=>{try{const w=i.naturalWidth,h=i.naturalHeight,sc=Math.min(1,max/Math.max(w,h));if(sc>=1&&d.length<60000)return res(d);const c=document.createElement("canvas");c.width=Math.max(1,Math.round(w*sc));c.height=Math.max(1,Math.round(h*sc));const x=c.getContext("2d");x.imageSmoothingQuality="high";x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(i,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.8))}catch(e){res(d)}};i.onerror=()=>res(null);i.src=d})}
+async function fetchFull(id){if(photoCache.has(id))return photoCache.get(id);let v=await idbGet(id);if(!v){try{const s=await get(ref(rdb,"photos/"+id));v=s.val();if(v)idbPut(id,v)}catch(e){v=null}}return v}
+function getThumb(id){if(thumbCache.has(id))return Promise.resolve(thumbCache.get(id));if(thumbPend.has(id))return thumbPend.get(id);
+  const pr=(async()=>{let t=await idbGet("t:"+id);if(!t){const d=await fetchFull(id);if(d){t=await makeThumb(d);if(t)idbPut("t:"+id,t)}}if(t)thumbCache.set(id,t);thumbPend.delete(id);return t})();thumbPend.set(id,pr);return pr}
 function getPhoto(id){if(photoCache.has(id))return Promise.resolve(photoCache.get(id));if(pending.has(id))return pending.get(id);
   const pr=(async()=>{let v=await idbGet(id);if(!v){try{const s=await get(ref(rdb,"photos/"+id));v=s.val();if(v)idbPut(id,v)}catch(e){v=null}}if(v)photoCache.set(id,v);pending.delete(id);return v})();pending.set(id,pr);return pr}
-function fillImgs(root){(root.querySelectorAll?root:document).querySelectorAll('img[src*="#pid="]').forEach(im=>{const id=im.getAttribute("src").split("#pid=")[1];if(im.dataset.pl===id)return;im.dataset.pl=id;getPhoto(id).then(d=>{if(d&&im.getAttribute("src").includes("#pid="+id))im.src=d})})}
+function fillImgs(root){(root.querySelectorAll?root:document).querySelectorAll('img[src*="#pid="]').forEach(im=>{const id=im.getAttribute("src").split("#pid=")[1];if(im.dataset.pl===id)return;im.dataset.pl=id;const full=im.hasAttribute("data-full");
+  if(!full&&thumbCache.has(id)){im.src=thumbCache.get(id);return}(full?getPhoto(id):getThumb(id)).then(d=>{if(d&&im.getAttribute("src").includes("#pid="+id))im.src=d})})}
 new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1){if(n.tagName==="IMG")fillImgs(n.parentNode||document);else fillImgs(n)}}).observe(document.documentElement,{childList:true,subtree:true});
 const assetsApi={
-  upload:async blob=>{const d=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(blob)});const id="u"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);await set(ref(rdb,"photos/"+id),d);photoCache.set(id,d);idbPut(id,d);return{id,url:d}},
+  upload:async blob=>{const d0=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(blob)});const d=await optimizeDataUrl(d0);const id="u"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);await set(ref(rdb,"photos/"+id),d);photoCache.set(id,d);idbPut(id,d);return{id,url:d}},
   delete:async id=>{await remove(ref(rdb,"photos/"+id));photoCache.delete(id)}
 };
-window.FB={rdb,auth,ref,get,set,update,remove,onValue,ekey,clean,photoCache,getPhoto,role:()=>role,dept:()=>dept,me:()=>me,parseAcc,signOut:()=>signOut(auth),createPwAccount,changePw:pw=>updatePassword(auth.currentUser,pw)};
+window.FB={rdb,auth,ref,get,set,update,remove,onValue,ekey,clean,photoCache,getPhoto,getThumb,thumbCache,fetchFull,optimizeDataUrl,idbPut,role:()=>role,dept:()=>dept,me:()=>me,parseAcc,signOut:()=>signOut(auth),createPwAccount,changePw:pw=>updatePassword(auth.currentUser,pw)};
 $("#login-btn").onclick=async()=>{$("#login-err").textContent="";const pr=new GoogleAuthProvider();pr.setCustomParameters({prompt:"select_account"});
   try{await signInWithPopup(auth,pr)}catch(e){if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")await signInWithRedirect(auth,pr);else $("#login-err").textContent="Connexion impossible : "+(e.message||e.code)}};
 const LK="mh-email-link",okMail=e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
@@ -717,7 +728,7 @@ function qtyCtx(aid){const s=selDeps();return s.length?total(aid,s.map(id=>({id}
 function level(a,t){const s=+a.seuil||0;if(t<=0&&s>0)return"crit";if(s>0&&t<=s)return"warn";if(t<=0)return"crit";return"ok"}
 const LEVEL_TXT={ok:"En stock",warn:"Stock bas",crit:"Rupture"};
 const PH_PIX="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==";
-function photoSrc(a){if(!a||!a.photo)return null;if(a.photo.asset){const c=window.FB&&window.FB.photoCache.get(a.photo.asset);return c||PH_PIX+"#pid="+a.photo.asset}return a.photo.data||null}
+function photoSrc(a){if(!a||!a.photo)return null;if(a.photo.asset)return PH_PIX+"#pid="+a.photo.asset;return a.photo.data||null}
 function groupColor(g){if(!g)return"var(--muted)";return g.couleur||GROUP_COLORS[0]}
 function nextCode(){let m=0;for(const a of S.articles){const r=/^ART-(\d+)$/.exec(a.code||"");if(r)m=Math.max(m,+r[1])}return"ART-"+String(m+1).padStart(4,"0")}
 
@@ -1217,15 +1228,32 @@ function renderParams(b){
   const w=canAdmin;const depSort=(a,b)=>((a.hotel==="LES2"?"0":a.hotel)+a.nom).localeCompare((b.hotel==="LES2"?"0":b.hotel)+b.nom);const usedG=new Set(S.articles.map(a=>a.groupeId)),usedU=new Set(S.articles.map(a=>a.uniteId));
   const deps=S.depots.slice().sort(depSort).filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2");
   const isAdm=window.FB&&window.FB.role()==="admin";
-  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
+  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button><button class="btn" id="adm-pho">🗜 Optimiser les photos</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
    <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2>${w&&deps.some(d=>!d.departement&&deptGuess(d.nom))?`<div class="lock" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px">${deps.filter(d=>!d.departement&&deptGuess(d.nom)).length} dépôt(s) classé(s) automatiquement (proposé). Vérifiez puis enregistrez.</span><button class="btn sm primary" id="dp-save">Enregistrer les départements proposés</button></div>`:""}<div class="list">${(()=>{const depQ={};for(const a of S.articles){const o=stockByArt.get(a.id);if(o)for(const d in o)depQ[d]=(depQ[d]||0)+o[d]}window.__depQ=depQ;return""})()}${[...DEPTS,""].map(h=>{const ds=deps.filter(d=>depDept(d)===h);if(!ds.length)return"";return`<div class="dd-h" style="margin:10px 0 2px;color:var(--accent);font-weight:700">${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"} <span class="hint">· ${ds.length} dépôt${ds.length>1?"s":""}</span></div>`+ds.map(d=>{const q=window.__depQ[d.id]||0;return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${d.hotel==="LES2"?"Commun aux deux · ":""}${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock${!d.departement&&h?" · <i>département proposé</i>":""}</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
    <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
   </div>`;
   b.querySelectorAll("[data-new]").forEach(x=>x.onclick=()=>refForm(x.dataset.new));
-  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const dpb=$("#adm-dup",b);if(dpb)dpb.onclick=()=>dupTool();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
+  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const dpb=$("#adm-dup",b);if(dpb)dpb.onclick=()=>dupTool();const pob=$("#adm-pho",b);if(pob)pob.onclick=()=>photoOptimize();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
   b.querySelectorAll("[data-ed]").forEach(x=>x.onclick=()=>{const[c,id]=x.dataset.ed.split(":");refForm(c,S[c].find(r=>r.id===id))});
   const dps=$("#dp-save",b);if(dps)dps.onclick=()=>confirmInline(dps,"Confirmer l'enregistrement ?",async()=>{dps.disabled=true;try{let n=0;for(const d of S.depots){if(d.departement)continue;const g=deptGuess(d.nom);if(!g)continue;await db.collection("depots").doc(d.id).update({departement:g});n++}toast(n+" dépôt(s) classé(s) par département")}catch(e){toast(errText(e));dps.disabled=false}});
+}
+
+/* ---------- Optimisation des photos déjà enregistrées ---------- */
+function photoOptimize(){
+  const F=window.FB;if(!F){toast("Indisponible.");return}
+  const ids=[...new Set(S.articles.map(a=>a.photo&&a.photo.asset).filter(Boolean))];
+  const m=openModal(`<header><h2>Optimiser les photos</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p style="margin:0">Les nouvelles photos sont désormais réduites automatiquement à l'enregistrement (1024 px, ~170 Ko max). Cet outil applique la même réduction aux <b>${ids.length}</b> photos déjà enregistrées : seules les photos trop lourdes sont remplacées, en gardant le même article et la même photo (qualité visuelle conservée).</p>
+   <p class="hint" style="margin:0">Durée : quelques minutes (chaque photo est téléchargée puis renvoyée). Laissez la page ouverte jusqu'à la fin.</p>
+   <div id="po-st" class="lock" style="display:none"></div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="po-go">Lancer l'optimisation</button></footer>`);
+  $("#po-go",m).onclick=async()=>{const go=$("#po-go",m),st=$("#po-st",m);go.disabled=true;st.style.display="";let done=0,ch=0,before=0,after=0,err=0,i=0;
+    const work=async()=>{while(i<ids.length){const id=ids[i++];try{const s=await F.get(F.ref(F.rdb,"photos/"+id));const d=s.val();if(d){const o=await F.optimizeDataUrl(d);before+=d.length;
+          if(o&&o!==d&&o.length<d.length*.9){await F.set(F.ref(F.rdb,"photos/"+id),o);after+=o.length;ch++;if(F.photoCache.has(id))F.photoCache.set(id,o);F.idbPut(id,o);F.thumbCache.delete(id);F.idbPut("t:"+id,null)}else after+=d.length}}catch(e){err++}
+        done++;if(done%5===0||done===ids.length)st.textContent=`${done} / ${ids.length} photos vérifiées · ${ch} réduites · ${((before-after)/1048576).toFixed(1)} Mo gagnés${err?" · "+err+" erreur(s)":""}`}};
+    await Promise.all([work(),work(),work()]);
+    st.textContent=`Terminé : ${ids.length} photos vérifiées, ${ch} réduites. Taille totale ${(before/1048576).toFixed(1)} Mo → ${(after/1048576).toFixed(1)} Mo.${err?" "+err+" erreur(s) : relancez pour réessayer.":""}`;go.textContent="Relancer";go.disabled=false};
 }
 
 /* ---------- Modal helpers ---------- */
@@ -1282,7 +1310,7 @@ function loadImg(file){return new Promise((res,rej)=>{const r=new FileReader();r
 function shrink(img,max,qual){const s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const x=c.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);return c}
 async function preparePhoto(file){
   const img=await loadImg(file);
-  if(assets){const c=shrink(img,1280,.86);const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.86));const up=await assets.upload(blob,{type:"image/jpeg"});return{asset:up.id}}
+  if(assets){const c=shrink(img,1024,.86);const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.86));const up=await assets.upload(blob,{type:"image/jpeg"});return{asset:up.id}}
   // fallback for viewers without asset upload: small inline image stored in the record
   let q=.72,c=shrink(img,520,q),d=c.toDataURL("image/jpeg",q);
   while(d.length>140000&&q>.35){q-=.1;d=c.toDataURL("image/jpeg",q)}
@@ -1298,7 +1326,7 @@ function articleForm(row){
   const deps=depotsVis().length?depotsVis():S.depots;
   const m=openModal(`<header><h2>${row?"Modifier l'article":"Nouvel article"}</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb">
-    <div class="photo-pick"><div class="ph" id="a-ph">${src?`<img src="${esc(src)}" alt="">`:PH_SVG}</div>
+    <div class="photo-pick"><div class="ph" id="a-ph">${src?`<img src="${esc(src)}" data-full alt="">`:PH_SVG}</div>
       <div style="display:flex;flex-direction:column;gap:6px"><label class="btn" style="cursor:pointer">Choisir une photo<input type="file" id="a-file" accept="image/*" hidden></label>${src?`<button class="btn ghost sm" id="a-rmph">Retirer la photo</button>`:""}<span class="hint">JPG ou PNG, redimensionnée automatiquement.</span></div></div>
     <div class="fgrid">
      <label class="f">Code<input type="text" id="a-code" value="${esc(row?.code||nextCode())}"></label>
@@ -1351,7 +1379,7 @@ function articleDetail(id){
   pts.reverse();
   const m=openModal(`<header><h2>${esc(a.nom)}</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb">
-    <div class="detail"><div class="ph">${src?`<img class="zoomable" src="${esc(src)}" data-zoom="${esc(src)}" data-cap="${esc(a.nom)}" alt="${esc(a.nom)}" title="Cliquer pour agrandir">`:PH_SVG}</div>
+    <div class="detail"><div class="ph">${src?`<img class="zoomable" data-full src="${esc(src)}" data-zoom="${esc(src)}" data-cap="${esc(a.nom)}" alt="${esc(a.nom)}" title="Cliquer pour agrandir">`:PH_SVG}</div>
      <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="pill ${l}">${LEVEL_TXT[l]}</span>${g?`<span class="chip dot" style="--c:${groupColor(g)}">${esc(g.nom)}</span>`:""}${hotelChip(a.hotel)}</div>
       <div><span class="eyebrow">Stock ${ui.hotel==="ALL"?"total":ui.hotel}</span><div style="font-family:var(--f-display);font-size:32px;font-weight:700" class="num">${fmt(t)} <span style="font-size:16px;color:var(--muted)">${uS(un?.nom||"")}</span></div></div>
