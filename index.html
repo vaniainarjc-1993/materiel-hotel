@@ -685,7 +685,7 @@ const fmt=n=>(Math.round((+n||0)*100)/100).toLocaleString("fr-FR");
 const money=n=>Math.round(+n||0).toLocaleString("fr-FR")+" Ar";
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const fdate=s=>{if(!s)return"";const[y,m,d]=s.split("-");return d+"/"+m+"/"+y};
-const by=(arr)=>Object.fromEntries(arr.map(x=>[x.id,x]));
+const _byC=new WeakMap();const by=(arr)=>{const c=_byC.get(arr);if(c&&c.n===arr.length)return c.m;const m=Object.fromEntries(arr.map(x=>[x.id,x]));_byC.set(arr,{n:arr.length,m});return m};
 const PH_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>';
 
 function toast(msg){const t=document.createElement("div");t.className="toast";t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
@@ -699,17 +699,20 @@ function deptGuess(nom){const n=String(nom||"").toUpperCase();
   if(/MAINTENANCE|TECHNIQUE|INFORMATIQUE|EXTERIEUR/.test(n))return"TECHNIQUE";
   if(/BANQUET|BAR\b|SKYBAR|RESTAURANT|TRIO|RAVINALA|TEPPANYAKI|CONVENTION|LOBBY/.test(n))return"F&B";
   if(/ECONOMAT|LOGISTIQUE|PERTE|GENERAL|MAGASIN/.test(n))return"FINANCES";return""}
-const depDept=d=>(d&&(d.departement||deptGuess(d.nom)))||"";
+const _ddC=new WeakMap();const depDept=d=>{if(!d)return"";if(d.departement)return d.departement;let g=_ddC.get(d);if(g===undefined){g=deptGuess(d.nom);_ddC.set(d,g)}return g};
 const deptIdx=x=>{const i=DEPTS.indexOf(x);return i<0?99:i};
 const depKey=d=>String(deptIdx(depDept(d))).padStart(2,"0")+(d.hotel==="LES2"?"0":d.hotel)+d.nom;
-function depotsVis(){return S.depots.filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2").sort((a,b)=>depKey(a).localeCompare(depKey(b)))}
+let _dvC=null;function depotsVis(){const c=_dvC;if(c&&c.ref===S.depots&&c.n===S.depots.length&&c.h===ui.hotel)return c.v.slice();const v=S.depots.filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2").map(d=>[depKey(d),d]).sort((a,b)=>a[0].localeCompare(b[0])).map(x=>x[1]);_dvC={ref:S.depots,n:S.depots.length,h:ui.hotel,v,s:new Set(v.map(d=>d.id))};return v.slice()}
 function artVis(){return S.articles.filter(a=>ui.hotel==="ALL"||!a.hotel||a.hotel==="LES2"||a.hotel===ui.hotel)}
 let stockMap={};
-function rebuildStock(){stockMap={};for(const s of S.stock)stockMap[s.articleId+"__"+s.depotId]=+s.qte||0}
+let stockByArt=new Map();
+function rebuildStock(){stockMap={};stockByArt=new Map();for(const s of S.stock){stockMap[s.articleId+"__"+s.depotId]=+s.qte||0;let o=stockByArt.get(s.articleId);if(!o)stockByArt.set(s.articleId,o={});o[s.depotId]=+s.qte||0}}
+function setQ(aid,did,v){stockMap[aid+"__"+did]=v;let o=stockByArt.get(aid);if(!o)stockByArt.set(aid,o={});o[did]=v}
 const qty=(a,d)=>stockMap[a+"__"+d]||0;
-function total(aid,deps=depotsVis()){let t=0;for(const d of deps)t+=qty(aid,d.id);return t}
+const _dsC=new WeakMap();
+function total(aid,deps){const o=stockByArt.get(aid);if(!o)return 0;let ds;if(!deps){depotsVis();ds=_dvC.s}else{ds=_dsC.get(deps);if(!ds){ds=new Set(deps.map(d=>d.id));_dsC.set(deps,ds)}}let t=0;for(const d in o)if(ds.has(d))t+=o[d];return t}
 const inDep=(a,did)=>qty(a.id,did)!==0||a.depotDefaut===did;
-function selDeps(){const vis=new Set(depotsVis().map(d=>d.id));return ui.deps.filter(id=>vis.has(id))}
+function selDeps(){if(!ui.deps.length)return[];depotsVis();const vis=_dvC.s;return ui.deps.filter(id=>vis.has(id))}
 function qtyCtx(aid){const s=selDeps();return s.length?total(aid,s.map(id=>({id}))):total(aid)}
 function level(a,t){const s=+a.seuil||0;if(t<=0&&s>0)return"crit";if(s>0&&t<=s)return"warn";if(t<=0)return"crit";return"ok"}
 const LEVEL_TXT={ok:"En stock",warn:"Stock bas",crit:"Rupture"};
@@ -925,7 +928,7 @@ function renderDash(b){
   // by group
   const byG={};for(const a of arts){const k=a.groupeId||"_";byG[k]=(byG[k]||0)+total(a.id,deps)}
   const gRows=Object.entries(byG).sort((a,b)=>b[1]-a[1]);const gMax=Math.max(1,...gRows.map(r=>r[1]));
-  const byD=deps.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return[d,q]}).sort((a,b)=>b[1]-a[1]);const dMax=Math.max(1,...byD.map(r=>r[1]));
+  const depQ={};for(const a of S.articles){const o=stockByArt.get(a.id);if(o)for(const d in o)depQ[d]=(depQ[d]||0)+o[d]}const byD=deps.map(d=>[d,depQ[d.id]||0]).sort((a,b)=>b[1]-a[1]);const dMax=Math.max(1,...byD.map(r=>r[1]));
   const wl=weeks.map(t=>{const d=new Date(t);return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")});
   b.innerHTML=`${majBanner()}${canAdmin&&(window.__dupN||window.__dupP)?`<div class="maj-banner" style="background:color-mix(in srgb,var(--warn) 12%,var(--surface));border:1px solid var(--warn)"><b>🔍 Doublons d'articles :</b> ${window.__dupN||0} groupe${(window.__dupN||0)>1?"s":""} sûr${(window.__dupN||0)>1?"s":""} et ${window.__dupP||0} à vérifier. <button class="btn sm" data-dup-go>Contrôler les doublons</button></div>`:""}
   <div class="kpis">
@@ -1215,7 +1218,7 @@ function renderParams(b){
   const deps=S.depots.slice().sort(depSort).filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2");
   const isAdm=window.FB&&window.FB.role()==="admin";
   b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
-   <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2>${w&&deps.some(d=>!d.departement&&deptGuess(d.nom))?`<div class="lock" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px">${deps.filter(d=>!d.departement&&deptGuess(d.nom)).length} dépôt(s) classé(s) automatiquement (proposé). Vérifiez puis enregistrez.</span><button class="btn sm primary" id="dp-save">Enregistrer les départements proposés</button></div>`:""}<div class="list">${[...DEPTS,""].map(h=>{const ds=deps.filter(d=>depDept(d)===h);if(!ds.length)return"";return`<div class="dd-h" style="margin:10px 0 2px;color:var(--accent);font-weight:700">${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"} <span class="hint">· ${ds.length} dépôt${ds.length>1?"s":""}</span></div>`+ds.map(d=>{let q=0;for(const a of S.articles)q+=qty(a.id,d.id);return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${d.hotel==="LES2"?"Commun aux deux · ":""}${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock${!d.departement&&h?" · <i>département proposé</i>":""}</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
+   <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2>${w&&deps.some(d=>!d.departement&&deptGuess(d.nom))?`<div class="lock" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px">${deps.filter(d=>!d.departement&&deptGuess(d.nom)).length} dépôt(s) classé(s) automatiquement (proposé). Vérifiez puis enregistrez.</span><button class="btn sm primary" id="dp-save">Enregistrer les départements proposés</button></div>`:""}<div class="list">${(()=>{const depQ={};for(const a of S.articles){const o=stockByArt.get(a.id);if(o)for(const d in o)depQ[d]=(depQ[d]||0)+o[d]}window.__depQ=depQ;return""})()}${[...DEPTS,""].map(h=>{const ds=deps.filter(d=>depDept(d)===h);if(!ds.length)return"";return`<div class="dd-h" style="margin:10px 0 2px;color:var(--accent);font-weight:700">${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"} <span class="hint">· ${ds.length} dépôt${ds.length>1?"s":""}</span></div>`+ds.map(d=>{const q=window.__depQ[d.id]||0;return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${d.hotel==="LES2"?"Commun aux deux · ":""}${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock${!d.departement&&h?" · <i>département proposé</i>":""}</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
    <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
   </div>`;
@@ -1750,7 +1753,7 @@ async function recordMove(mv,extraArts={}){
   const art=S.articles.find(a=>a.id===mv.articleId)||extraArts[mv.articleId];
   const [y,mo,d]=mv.date.split("-").map(Number);const dateTs=new Date(y,mo-1,d,12).getTime();
   const mref=db.collection("mouvements").doc();await mref.set({...mv,effets,articleNom:art?.nom||"",dateTs,ts:Date.now(),par:myId||null});
-  for(const e of effets){const k=mv.articleId+"__"+e.depotId;const nv=Math.round((qty(mv.articleId,e.depotId)+e.delta)*1000)/1000;stockMap[k]=nv;await db.collection("stock").doc(k).set({articleId:mv.articleId,depotId:e.depotId,qte:nv,maj:Date.now()})}
+  for(const e of effets){const k=mv.articleId+"__"+e.depotId;const nv=Math.round((qty(mv.articleId,e.depotId)+e.delta)*1000)/1000;setQ(mv.articleId,e.depotId,nv);await db.collection("stock").doc(k).set({articleId:mv.articleId,depotId:e.depotId,qte:nv,maj:Date.now()})}
   return mref.id;
 }
 
