@@ -1725,7 +1725,7 @@ function transferSheet(t,unsaved){
   const SG=d.decl?SIGN_DECL:SIGNATAIRES.map(s=>[s]);
   const signBlock=lbl=>`<div class="sh-date">${lbl} : <span class="sh-line"></span></div><div class="sh-sign${d.decl?" five":""}">${SG.map(([s,rec])=>`<div><div class="sh-h">${esc(s)}</div><p>Nom : <span class="sh-line"></span></p><p>Signature : <span class="sh-line"></span></p>${rec?`<p>Recommandation : <span class="sh-line"></span></p><p><span class="sh-line" style="width:100%"></span></p>`:""}</div>`).join("")}</div>`;
   const html=`<div class="sheet" id="sheet">
-    <div class="sh-head"><div class="sh-center"><div class="sh-title">${d.titre}</div><div class="sh-sub">${d.sub} <b>${esc(t.numero)}</b></div></div><div class="sh-st ${d.valide?"ok":"dr"}">${st}</div></div>
+    <div class="sh-head"><div class="sh-center"><div class="sh-title">${d.titre}</div><div class="sh-sub">${d.sub} <b>${NUM_BLANK}</b></div></div><div class="sh-st ${d.valide?"ok":"dr"}">${st}</div></div>
     <div class="sh-info"><div><span>Date</span><b>${fdate(t.date)}</b></div><div><span>${d.decl?"Dépôt PERTES MATERIEL":"Dépôt destinataire"}</span><b>${esc(d.dest)}</b></div>${d.decl?`<div><span>Nature (à cocher)</span><b class="sh-nat">${t.nature==="casse"?"☒":"☐"} CASSE &nbsp; ${t.nature==="perte"?"☒":"☐"} PERTE</b></div>`:`<div><span>Type de transfert</span><b class="${d.ponct?"sh-pc":""}">${esc(typeTxt(t))}</b></div>`}<div><span>Date de l'événement - Nom de l'événement</span><b>${esc(evtTxt(t))}</b></div><div><span>${d.valide?"Validé le":"Créé le"}</span><b>${d.valide?fdt(t.valideLe):(t.cree?fdt(t.cree):"—")}${d.valide&&names[t.validePar]?" · "+esc(names[t.validePar]):""}</b></div></div>
     ${d.valide?"":`<div class="sh-warn">BROUILLON — document non validé : le stock n'a pas encore été déplacé.</div>`}
     <table class="sh-t"><thead><tr><th>Dépôt de départ</th><th class="sh-ph">Photo</th><th>Nom d'article</th><th>Unité</th>${d.decl?`<th>Quantité ${t.nature==="perte"?"perdue":t.nature==="casse"?"cassée":"cassée / perdue"}</th><th class="sh-obsc">Observations</th>`:`<th>Quantité aller</th>${d.ponct?"<th>Quantité retour</th>":""}<th>Casses</th><th>Manquant</th><th>Pertes</th>`}</tr></thead>
@@ -1766,7 +1766,7 @@ async function sheetPdf(t,d){const imgs=await loadPdfImgs(d),usedImg=new Set();
     :[["Dépôt de départ",140],["Photo",58],["Nom d'article",282],["Unité",52],["Quantité aller",64],["Casses",60],["Manquant",60],["Pertes",66]];
   const header=(first)=>{
     text(W/2,M+18,d.titre,first?18:12,true,"center");
-    text(W/2,M+(first?34:30),`${d.sub} ${t.numero}`,10,false,"center");
+    text(W/2,M+(first?34:30),`${d.sub} ${NUM_BLANK}`,10,false,"center");
     ops.push("1.5 w");col(...stc);col(...stc,true);const bw=pdfW(st,16,true)+28;rect(W-M-bw,M,bw,30);text(W-M-bw/2,M+21,st,16,true,"center");col(0,0,0,true);col(0,0,0);ops.push("0.5 w");
     return M+(first?46:40);
   };
@@ -1797,7 +1797,7 @@ async function sheetPdf(t,d){const imgs=await loadPdfImgs(d),usedImg=new Set();
       if(rec){text(x,y+53,"Recommandation :",9);col(120,120,120);line(x+80,y+55,x+sw-gap,y+55);line(x,y+71,x+sw-gap,y+71);col(0,0,0);hh=80}});y+=hh};
   signBlock(d.dateLbl);
   if(d.ponct){y+=4;signBlock("Date de retour"+(t.dateRetour?` (prévue le ${fdate(t.dateRetour)})`:""))}
-  const np=pages.length;pages.forEach((p,i)=>{ops=p;col(110,110,110,true);text(M,H-14,`${d.titre} — N° ${t.numero} — ${st}${d.decl?"":" — "+typeTxt(t)}`,7.5);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${np}`,7.5,false,"right");col(0,0,0,true)});
+  const np=pages.length;pages.forEach((p,i)=>{ops=p;col(110,110,110,true);text(M,H-14,`${d.titre} — ${st}${d.decl?"":" — "+typeTxt(t)}`,7.5);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${np}`,7.5,false,"right");col(0,0,0,true)});
   const objs=[];const add=s=>{objs.push(s);return objs.length};
   const font1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),font2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"),font3=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>");
   const pagesId=objs.length+1;objs.push(null);const kids=[];
@@ -1827,6 +1827,7 @@ async function recordMove(mv,extraArts={}){
 const LIBS={xlsx:"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",jszip:"https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",pdf:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"};
 const _libP={};
 function loadLib(k){return _libP[k]||(_libP[k]=new Promise((res,rej)=>{const s=document.createElement("script");s.src=LIBS[k];s.onload=()=>res();s.onerror=()=>{delete _libP[k];rej({message:"Impossible de charger l'outil de lecture (vérifiez la connexion internet)."})};document.head.appendChild(s)}))}
+const NUM_BLANK="................................";
 const nrm=s=>String(s??"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/Œ/g,"OE").replace(/[^A-Z0-9]+/g," ").trim();
 /* groupes qui ne sont pas du matériel : ignorés à la mise à jour du stock, aux imports et à la création d'articles */
 const GRP_EXCLU=["NOURRITURES PERISSABLES", "PRODUIT D ENTRETIEN TECHNIQUE", "AUTRES CONSOMMABLES RESTAURANT", "PIECES DE RECHANGE OZTI", "PIECE DE RECHANGE TECHNIQUE", "ELECTRICITE", "CHARCUTERIE", "EPICES", "BOISSON GAZEUSE", "BOF", "PRODUIT D ACCUEIL NON ALIMENTAIRE", "PAPETERIE", "RHUM/ANIS", "CAFE", "POISSON/CRUSTACE/FDM", "PRODUITS DE SOIN", "PATISSERIE/BOULANGERIE", "PRODUIT D ACCUEIL COMMERCIAL", "CREME/YAOURT/LAIT", "PRODUIT D ENTRETIEN HOTEL", "EAU MINERALE", "PATES/RIZ/FARINE", "GIN", "BIERES", "WHISKY", "JUS DE FRUITS", "LIQUEUR/VERMOUTH", "PRODUIT D ACCUEIL ALIMENTAIRE", "EMBALLAGE CUISINE", "IMPRIMES", "BOUCHERIE", "FRUITS ET LEGUMES SECS", "SIROP", "THE", "VIN ROSE", "VIN ROUGE"];
@@ -2747,7 +2748,7 @@ async function invPdf(list,kind){
   for(const d of docs){cur=d;const t=d.t,valide=t.statut==="valide",st=valide?"VALIDÉ":"EN COURS",stc=valide?[30,120,70]:[190,110,20];
     const titre=etat?"ÉTAT D'INVENTAIRE":"FICHE D'INVENTAIRE";d.titre=titre;d.st=st;
     let y;
-    const header=first=>{text(W/2,M+16,titre,first?17:12,true,"center");text(W/2,M+(first?31:28),"N° "+t.numero,10,false,"center");
+    const header=first=>{text(W/2,M+16,titre,first?17:12,true,"center");text(W/2,M+(first?31:28),"N° "+NUM_BLANK,10,false,"center");
       if(etat){ops.push("1.4 w");col(...stc);const bw=pdfW(st,12,true)+22;rect(W-M-bw,M,bw,24);col(...stc,true);text(W-M-bw/2,M+16.5,st,12,true,"center");col(0,0,0,true);col(0,0,0);ops.push("0.5 w")}
       return M+(first?42:36)};
     const thead=()=>{col(225,230,228,true);rect(M,y,TW,22,true);col(0,0,0,true);let x=M;for(const[c,w,al]of cols){const ls=pdfWrap(c.toUpperCase(),7,true,w-6);ls.forEach((s,k)=>al==="l"?text(x+4,y+9+k*8-(ls.length-1)*3,s,7,true):text(x+w/2,y+9+k*8-(ls.length-1)*3,s,7,true,"center"));x+=w}
@@ -2780,7 +2781,7 @@ async function invPdf(list,kind){
     const sw=TW/3;INV_SIGN.forEach((s,i)=>{const x=M+i*sw;text(x,y,s,9.5,true);text(x,y+17,"Nom :",8.5);text(x,y+35,"Signature :",8.5);col(120,120,120);line(x+30,y+19,x+sw-20,y+19);line(x+52,y+37,x+sw-20,y+37);col(0,0,0)});y+=48;
   }
   const byDoc=new Map();pages.forEach(p=>{if(!byDoc.has(p.doc))byDoc.set(p.doc,[]);byDoc.get(p.doc).push(p)});
-  for(const[d,ps]of byDoc)ps.forEach((p,i)=>{ops=p.ops;col(110,110,110,true);text(M,H-14,`${d.titre} — N° ${d.t.numero} — ${dm[d.t.depotId]?.nom||""}${etat?" — "+d.st:""}`,7);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${ps.length}`,7,false,"right");col(0,0,0,true)});
+  for(const[d,ps]of byDoc)ps.forEach((p,i)=>{ops=p.ops;col(110,110,110,true);text(M,H-14,`${d.titre} — ${dm[d.t.depotId]?.nom||""}${etat?" — "+d.st:""}`,7);text(W-M,H-14,`Imprimé le ${fdt(Date.now())} — Page ${i+1}/${ps.length}`,7,false,"right");col(0,0,0,true)});
   const objs=[];const add=s=>{objs.push(s);return objs.length};
   const font1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),font2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
   const pagesId=objs.length+1;objs.push(null);const kids=[];
