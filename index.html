@@ -677,7 +677,7 @@ onAuthStateChanged(auth,async u=>{
 <script>
 const HOTELS=["NOVOTEL","IBIS"];
 const GROUP_COLORS=["#0e5a53","#22508f","#b3332b","#a8711f","#6b4fa0","#2f7d4f","#c25e8a","#4f6d7a","#8a6d3b","#1f8a99"];
-const S={groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[],inventaires:[],majstock:[],receptions:[]};
+const S={config:[],groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[],inventaires:[],majstock:[],receptions:[]};
 const loaded={};
 let db=null,user=null,assets=null,canWrite=true,canAdmin=false,myId=null;
 const names={};
@@ -748,7 +748,7 @@ function nextCode(){let m=0;for(const a of S.articles){const r=/^ART-(\d+)$/.exe
   $("#ro").hidden=canWrite;
   setConn(true,"Synchronisé");
   const sub=(name,q)=>q.onSnapshot(snap=>{S[name]=snap.docs.map(d=>{const o={id:d.id,...d.data()};if(o.hotel==="IBS")o.hotel="IBIS";return o});loaded[name]=true;if(name==="stock")rebuildStock();scheduleRender()},e=>{setConn(false,"Hors ligne ("+e.code+")")});
-  sub("groupes",db.collection("groupes"));
+  sub("groupes",db.collection("groupes"));sub("config",db.collection("config"));
   sub("unites",db.collection("unites"));
   sub("depots",db.collection("depots"));
   sub("articles",db.collection("articles"));
@@ -1244,13 +1244,21 @@ function grpCleanup(){
   const gs=S.groupes.filter(g=>isGrpExclu(g.nom)).sort((a,b)=>a.nom.localeCompare(b.nom));
   const rows=gs.map(g=>{const arts=S.articles.filter(a=>a.groupeId===g.id);let q=0;const st=[];for(const a of arts)for(const s2 of S.stock)if(s2.articleId===a.id){st.push(s2);q+=+s2.qte||0}return{g,arts,st,q}});
   const nA=rows.reduce((x,r)=>x+r.arts.length,0),nS=rows.reduce((x,r)=>x+r.st.length,0);
-  const absent=GRP_EXCLU.filter(n=>!gs.some(g=>nrm(g.nom)===nrm(n)));
+  const LIST=grpExcluList(),absent=LIST.filter(n=>!gs.some(g=>nrm(g.nom)===nrm(n))),extra=grpExtra();
+  const autres=S.groupes.filter(g=>!isGrpExclu(g.nom)).sort((a,b)=>a.nom.localeCompare(b.nom));
   const m=openModal(`<header><h2>Groupes hors matériel</h2><button class="btn ghost sm" data-close>Fermer</button></header>
-   <div class="mb"><p style="margin:0">Ces ${GRP_EXCLU.length} groupes ne sont pas du matériel. Ils sont désormais <b>ignorés</b> à chaque mise à jour du stock, à l'import des réceptions et à la création d'article. Le bouton ci-dessous les <b>supprime de la base</b> avec leurs articles, leur stock et leurs photos. L'historique des mouvements déjà enregistrés est conservé.</p>
+   <div class="mb">
+    <div class="panel" style="padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><b style="flex-basis:100%">Transférer un groupe dans « Groupes hors matériel »</b><select id="gx-add" style="flex:1;min-width:220px"><option value="">— Choisir un groupe —</option>${autres.map(g=>`<option value="${g.id}">${esc(g.nom)} (${S.articles.filter(a=>a.groupeId===g.id).length} articles)</option>`).join("")}</select><button class="btn" id="gx-addb">➜ Transférer</button>
+     ${Object.keys(extra).length?`<span class="hint" style="flex-basis:100%">Ajoutés par vous : ${Object.entries(extra).map(([k,v])=>`<span class="chip">${esc(v)}<button class="x" data-gxrm="${esc(k)}" title="Retirer de la liste">×</button></span>`).join(" ")}</span>`:""}</div>
+    <p style="margin:0">Ces ${LIST.length} groupes ne sont pas du matériel. Ils sont désormais <b>ignorés</b> à chaque mise à jour du stock, à l'import des réceptions et à la création d'article. Le bouton ci-dessous les <b>supprime de la base</b> avec leurs articles, leur stock et leurs photos. L'historique des mouvements déjà enregistrés est conservé.</p>
     ${gs.length?`<div class="tablewrap" style="max-height:46vh;overflow:auto"><table><thead><tr><th>Groupe</th><th class="r">Articles</th><th class="r">Lignes de stock</th><th class="r">Quantité en stock</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.g.nom)}</b></td><td class="r num">${r.arts.length}</td><td class="r num">${r.st.length}</td><td class="r num">${fmt(r.q)}</td></tr>`).join("")}</tbody><tfoot><tr><td><b>TOTAL</b></td><td class="r num"><b>${nA}</b></td><td class="r num"><b>${nS}</b></td><td></td></tr></tfoot></table></div>`:`<p class="lock" style="margin:0">Aucun de ces groupes n'est présent dans la base : rien à supprimer.</p>`}
     ${absent.length&&gs.length?`<p class="hint" style="margin:0">Déjà absents de la base : ${esc(absent.join(", "))}.</p>`:""}
     <div id="gx-st" class="hint"></div><div class="err"></div></div>
    <footer><button class="btn" data-close>Fermer</button>${gs.length?`<button class="btn danger" id="gx-go">Supprimer ${gs.length} groupe${gs.length>1?"s":""} et ${nA} article${nA>1?"s":""}</button>`:""}</footer>`,{wide:true});
+  const saveX=async noms=>{await db.collection("config").doc("grpExclu").set({noms,maj:Date.now(),par:myId||null});for(let i=0;i<30&&JSON.stringify(grpExtra())!==JSON.stringify(noms);i++)await new Promise(r=>setTimeout(r,100))};
+  $("#gx-addb",m).onclick=()=>guard(m,async()=>{const id=$("#gx-add",m).value;if(!id)throw{message:"Choisissez le groupe à transférer."};const g=S.groupes.find(x=>x.id===id);if(!g)return;
+    const k=nrm(g.nom).replace(/ /g,"-").toLowerCase()||id;await saveX({...grpExtra(),[k]:g.nom});if(ui.groupe===id){ui.groupe="";saveUi()}toast(`« ${g.nom} » est maintenant hors matériel`);grpCleanup()});
+  m.querySelectorAll("[data-gxrm]").forEach(b=>b.onclick=()=>guard(m,async()=>{const e={...grpExtra()};const nm=e[b.dataset.gxrm];delete e[b.dataset.gxrm];await saveX(e);toast(`« ${nm} » retiré de la liste`);grpCleanup()}));
   const go=$("#gx-go",m);if(go)go.onclick=()=>confirmInline(go,"Confirmer la suppression définitive ?",()=>guard(m,async()=>{
     const st=$("#gx-st",m),upd={};
     for(const r of rows){for(const s2 of r.st)upd["data/stock/"+s2.id]=null;for(const a of r.arts){upd["data/articles/"+a.id]=null;if(a.photo&&a.photo.asset)upd["photos/"+a.photo.asset]=null}upd["data/groupes/"+r.g.id]=null}
@@ -1307,7 +1315,7 @@ function refForm(coll,row){
   if(coll==="unites")fields=`<label class="f">Nom<input type="text" class="u" id="r-nom" value="${esc(row?.nom||"")}" placeholder="Ex. Pièce"></label><label class="f">Abréviation<input type="text" class="u" id="r-abr" value="${esc(row?.abrev||"")}" placeholder="Ex. pce"></label>`;
   const m=openModal(`<header><h2>${row?"Modifier":"Nouveau"} ${T}</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb"><div class="fgrid">${fields}</div><div class="err"></div></div>
-   <footer>${row?`<button class="btn danger left" id="r-del">Supprimer</button>`:""}<button class="btn" data-close>Annuler</button><button class="btn primary" id="r-save">Enregistrer</button></footer>`);
+   <footer>${row?`<button class="btn danger left" id="r-del">Supprimer</button>`:""}${row&&coll==="groupes"?`<button class="btn left" id="r-hm" title="Ce groupe n'est pas du matériel">🧹 Transférer en hors matériel</button>`:""}<button class="btn" data-close>Annuler</button><button class="btn primary" id="r-save">Enregistrer</button></footer>`);
   $("#r-save",m).onclick=()=>guard(m,async()=>{
     const nom=coll==="unites"?$("#r-nom",m).value.trim():$("#r-nom",m).value.trim().toUpperCase();if(!nom)throw{message:"Le nom est obligatoire."};
     const data={nom};
@@ -1317,6 +1325,7 @@ function refForm(coll,row){
     if(row)await db.collection(coll).doc(row.id).update(data);else await db.collection(coll).add(data);
     closeModal();toast("Enregistré");
   });
+  const hm=$("#r-hm",m);if(hm)hm.onclick=()=>confirmInline(hm,"Confirmer : hors matériel ?",()=>guard(m,async()=>{const k=nrm(row.nom).replace(/ /g,"-").toLowerCase()||row.id;await db.collection("config").doc("grpExclu").set({noms:{...grpExtra(),[k]:row.nom},maj:Date.now(),par:myId||null});if(ui.groupe===row.id){ui.groupe="";saveUi()}toast(`« ${row.nom} » est maintenant hors matériel`);setTimeout(()=>grpCleanup(),400)}));
   const del=$("#r-del",m);if(del)del.onclick=()=>{
     let used=0;if(coll==="groupes")used=S.articles.filter(a=>a.groupeId===row.id).length;if(coll==="unites")used=S.articles.filter(a=>a.uniteId===row.id).length;
     if(coll==="depots"){for(const a of S.articles)if(qty(a.id,row.id))used++}
@@ -1813,7 +1822,11 @@ function loadLib(k){return _libP[k]||(_libP[k]=new Promise((res,rej)=>{const s=d
 const nrm=s=>String(s??"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/Œ/g,"OE").replace(/[^A-Z0-9]+/g," ").trim();
 /* groupes qui ne sont pas du matériel : ignorés à la mise à jour du stock, aux imports et à la création d'articles */
 const GRP_EXCLU=["NOURRITURES PERISSABLES", "PRODUIT D ENTRETIEN TECHNIQUE", "AUTRES CONSOMMABLES RESTAURANT", "PIECES DE RECHANGE OZTI", "PIECE DE RECHANGE TECHNIQUE", "ELECTRICITE", "CHARCUTERIE", "EPICES", "BOISSON GAZEUSE", "BOF", "PRODUIT D ACCUEIL NON ALIMENTAIRE", "PAPETERIE", "RHUM/ANIS", "CAFE", "POISSON/CRUSTACE/FDM", "PRODUITS DE SOIN", "PATISSERIE/BOULANGERIE", "PRODUIT D ACCUEIL COMMERCIAL", "CREME/YAOURT/LAIT", "PRODUIT D ENTRETIEN HOTEL", "EAU MINERALE", "PATES/RIZ/FARINE", "GIN", "BIERES", "WHISKY", "JUS DE FRUITS", "LIQUEUR/VERMOUTH", "PRODUIT D ACCUEIL ALIMENTAIRE", "EMBALLAGE CUISINE", "IMPRIMES", "BOUCHERIE", "FRUITS ET LEGUMES SECS", "SIROP", "THE", "VIN ROSE", "VIN ROUGE"];
-const _grpEx=new Set(GRP_EXCLU.map(x=>nrm(x)));const isGrpExclu=n=>!!n&&_grpEx.has(nrm(n));const isGidExclu=id=>{const g=id&&S.groupes.find(x=>x.id===id);return!!g&&isGrpExclu(g.nom)};
+const _grpEx=new Set(GRP_EXCLU.map(x=>nrm(x)));
+/* groupes ajoutés à la liste par l'administrateur (enregistrés dans data/config/grpExclu) */
+const grpExtra=()=>{const d=(S.config||[]).find(x=>x.id==="grpExclu");return d&&d.noms?d.noms:{}};
+const grpExcluList=()=>[...GRP_EXCLU,...Object.values(grpExtra()).filter(n=>!_grpEx.has(nrm(n)))];
+const isGrpExclu=n=>{if(!n)return false;const k=nrm(n);if(_grpEx.has(k))return true;const e=grpExtra();for(const v of Object.values(e))if(nrm(v)===k)return true;return false};const isGidExclu=id=>{const g=id&&S.groupes.find(x=>x.id===id);return!!g&&isGrpExclu(g.nom)};
 const CODE_RE=/^(E\d{3,}|REF\d*|DGN\d*|ZY\d*|\d{5,})$/,STOPW=new Set(["REF","DGN","HP","ZH","CAMBRO","OZTI","NOSTRA","IC","TRSP"]);
 const stripN=n=>n.split(" ").filter(t=>t&&!CODE_RE.test(t)&&!STOPW.has(t)).join(" ");
 const numsOf=n=>(n.match(/\d+/g)||[]).sort().join(",");
