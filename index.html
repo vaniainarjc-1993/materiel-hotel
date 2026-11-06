@@ -677,7 +677,7 @@ onAuthStateChanged(auth,async u=>{
 <script>
 const HOTELS=["NOVOTEL","IBIS"];
 const GROUP_COLORS=["#0e5a53","#22508f","#b3332b","#a8711f","#6b4fa0","#2f7d4f","#c25e8a","#4f6d7a","#8a6d3b","#1f8a99"];
-const S={config:[],groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[],inventaires:[],majstock:[],receptions:[]};
+const S={groupes:[],unites:[],depots:[],articles:[],stock:[],mouvements:[],transferts:[],inventaires:[],majstock:[],receptions:[]};
 const loaded={};
 let db=null,user=null,assets=null,canWrite=true,canAdmin=false,myId=null;
 const names={};
@@ -748,7 +748,7 @@ function nextCode(){let m=0;for(const a of S.articles){const r=/^ART-(\d+)$/.exe
   $("#ro").hidden=canWrite;
   setConn(true,"Synchronisé");
   const sub=(name,q)=>q.onSnapshot(snap=>{S[name]=snap.docs.map(d=>{const o={id:d.id,...d.data()};if(o.hotel==="IBS")o.hotel="IBIS";return o});loaded[name]=true;if(name==="stock")rebuildStock();scheduleRender()},e=>{setConn(false,"Hors ligne ("+e.code+")")});
-  sub("groupes",db.collection("groupes"));sub("config",db.collection("config"));
+  sub("groupes",db.collection("groupes"));
   sub("unites",db.collection("unites"));
   sub("depots",db.collection("depots"));
   sub("articles",db.collection("articles"));
@@ -1230,7 +1230,7 @@ function renderParams(b){
   const isAdm=window.FB&&window.FB.role()==="admin";
   b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button><button class="btn" id="adm-pho">🗜 Optimiser les photos</button><button class="btn" id="adm-gex">🧹 Groupes hors matériel</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
    <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2>${w&&deps.some(d=>!d.departement&&deptGuess(d.nom))?`<div class="lock" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px">${deps.filter(d=>!d.departement&&deptGuess(d.nom)).length} dépôt(s) classé(s) automatiquement (proposé). Vérifiez puis enregistrez.</span><button class="btn sm primary" id="dp-save">Enregistrer les départements proposés</button></div>`:""}<div class="list">${(()=>{const depQ={};for(const a of S.articles){const o=stockByArt.get(a.id);if(o)for(const d in o)depQ[d]=(depQ[d]||0)+o[d]}window.__depQ=depQ;return""})()}${[...DEPTS,""].map(h=>{const ds=deps.filter(d=>depDept(d)===h);if(!ds.length)return"";return`<div class="dd-h" style="margin:10px 0 2px;color:var(--accent);font-weight:700">${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"} <span class="hint">· ${ds.length} dépôt${ds.length>1?"s":""}</span></div>`+ds.map(d=>{const q=window.__depQ[d.id]||0;return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${d.hotel==="LES2"?"Commun aux deux · ":""}${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock${!d.departement&&h?" · <i>département proposé</i>":""}</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
-   <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
+   <div class="panel"><h2>Groupes d'articles <small>${S.groupes.filter(g=>!isGrpExclu(g.nom)).length}</small></h2><div class="list">${S.groupes.filter(g=>!isGrpExclu(g.nom)).slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
   </div>`;
   b.querySelectorAll("[data-new]").forEach(x=>x.onclick=()=>refForm(x.dataset.new));
@@ -1241,27 +1241,35 @@ function renderParams(b){
 
 /* ---------- Suppression des groupes qui ne sont pas du matériel ---------- */
 function grpCleanup(){
-  const gs=S.groupes.filter(g=>isGrpExclu(g.nom)).sort((a,b)=>a.nom.localeCompare(b.nom));
+  const gs=S.groupes.filter(g=>isGrpExclu(g.nom)&&(!g.horsMateriel||_grpEx.has(nrm(g.nom))||S.articles.some(a=>a.groupeId===g.id))).sort((a,b)=>a.nom.localeCompare(b.nom));
   const rows=gs.map(g=>{const arts=S.articles.filter(a=>a.groupeId===g.id);let q=0;const st=[];for(const a of arts)for(const s2 of S.stock)if(s2.articleId===a.id){st.push(s2);q+=+s2.qte||0}return{g,arts,st,q}});
   const nA=rows.reduce((x,r)=>x+r.arts.length,0),nS=rows.reduce((x,r)=>x+r.st.length,0);
-  const LIST=grpExcluList(),absent=LIST.filter(n=>!gs.some(g=>nrm(g.nom)===nrm(n))),extra=grpExtra();
+  const LIST=grpExcluList(),extra=grpExtra(),absent=GRP_EXCLU.filter(n=>!gs.some(g=>nrm(g.nom)===nrm(n)));
   const autres=S.groupes.filter(g=>!isGrpExclu(g.nom)).sort((a,b)=>a.nom.localeCompare(b.nom));
   const m=openModal(`<header><h2>Groupes hors matériel</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb">
-    <div class="panel" style="padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><b style="flex-basis:100%">Transférer un groupe dans « Groupes hors matériel »</b><select id="gx-add" style="flex:1;min-width:220px"><option value="">— Choisir un groupe —</option>${autres.map(g=>`<option value="${g.id}">${esc(g.nom)} (${S.articles.filter(a=>a.groupeId===g.id).length} articles)</option>`).join("")}</select><button class="btn" id="gx-addb">➜ Transférer</button>
+    <div class="panel" style="padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><b style="flex-basis:100%">Transférer des groupes dans « Groupes hors matériel » <span class="hint">(cochez-en plusieurs)</span></b><input type="search" id="gx-q" placeholder="Filtrer les groupes…" style="flex:1;min-width:200px"><button class="btn sm ghost" id="gx-none">Tout décocher</button>
+     <div id="gx-list" style="flex-basis:100%;max-height:30vh;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 12px">${autres.map(g=>`<label class="check" data-n="${esc(nrm(g.nom).toLowerCase())}" style="margin:0"><input type="checkbox" value="${g.id}"> ${esc(g.nom)} <span class="hint">(${S.articles.filter(a=>a.groupeId===g.id).length})</span></label>`).join("")}</div>
+     <button class="btn primary" id="gx-addb" disabled>➜ Transférer la sélection</button>
      ${Object.keys(extra).length?`<span class="hint" style="flex-basis:100%">Ajoutés par vous : ${Object.entries(extra).map(([k,v])=>`<span class="chip">${esc(v)}<button class="x" data-gxrm="${esc(k)}" title="Retirer de la liste">×</button></span>`).join(" ")}</span>`:""}</div>
     <p style="margin:0">Ces ${LIST.length} groupes ne sont pas du matériel. Ils sont désormais <b>ignorés</b> à chaque mise à jour du stock, à l'import des réceptions et à la création d'article. Le bouton ci-dessous les <b>supprime de la base</b> avec leurs articles, leur stock et leurs photos. L'historique des mouvements déjà enregistrés est conservé.</p>
     ${gs.length?`<div class="tablewrap" style="max-height:46vh;overflow:auto"><table><thead><tr><th>Groupe</th><th class="r">Articles</th><th class="r">Lignes de stock</th><th class="r">Quantité en stock</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.g.nom)}</b></td><td class="r num">${r.arts.length}</td><td class="r num">${r.st.length}</td><td class="r num">${fmt(r.q)}</td></tr>`).join("")}</tbody><tfoot><tr><td><b>TOTAL</b></td><td class="r num"><b>${nA}</b></td><td class="r num"><b>${nS}</b></td><td></td></tr></tfoot></table></div>`:`<p class="lock" style="margin:0">Aucun de ces groupes n'est présent dans la base : rien à supprimer.</p>`}
     ${absent.length&&gs.length?`<p class="hint" style="margin:0">Déjà absents de la base : ${esc(absent.join(", "))}.</p>`:""}
     <div id="gx-st" class="hint"></div><div class="err"></div></div>
    <footer><button class="btn" data-close>Fermer</button>${gs.length?`<button class="btn danger" id="gx-go">Supprimer ${gs.length} groupe${gs.length>1?"s":""} et ${nA} article${nA>1?"s":""}</button>`:""}</footer>`,{wide:true});
-  const saveX=async noms=>{await db.collection("config").doc("grpExclu").set({noms,maj:Date.now(),par:myId||null});for(let i=0;i<30&&JSON.stringify(grpExtra())!==JSON.stringify(noms);i++)await new Promise(r=>setTimeout(r,100))};
-  $("#gx-addb",m).onclick=()=>guard(m,async()=>{const id=$("#gx-add",m).value;if(!id)throw{message:"Choisissez le groupe à transférer."};const g=S.groupes.find(x=>x.id===id);if(!g)return;
-    const k=nrm(g.nom).replace(/ /g,"-").toLowerCase()||id;await saveX({...grpExtra(),[k]:g.nom});if(ui.groupe===id){ui.groupe="";saveUi()}toast(`« ${g.nom} » est maintenant hors matériel`);grpCleanup()});
-  m.querySelectorAll("[data-gxrm]").forEach(b=>b.onclick=()=>guard(m,async()=>{const e={...grpExtra()};const nm=e[b.dataset.gxrm];delete e[b.dataset.gxrm];await saveX(e);toast(`« ${nm} » retiré de la liste`);grpCleanup()}));
+  const flag=async(id,v)=>{await db.collection("groupes").doc(id).update({horsMateriel:v,horsMaterielLe:Date.now()});for(let i=0;i<30&&!!S.groupes.find(x=>x.id===id)?.horsMateriel!==v;i++)await new Promise(r=>setTimeout(r,100))};
+  const sel=()=>[...m.querySelectorAll("#gx-list input:checked")].map(c=>c.value);
+  const updB=()=>{const n=sel().length,b=$("#gx-addb",m);b.disabled=!n;b.textContent=n?`➜ Transférer ${n} groupe${n>1?"s":""}`:"➜ Transférer la sélection"};
+  m.querySelectorAll("#gx-list input").forEach(c=>c.onchange=updB);
+  $("#gx-q",m).oninput=e=>{const q=nrm(e.target.value).toLowerCase();m.querySelectorAll("#gx-list label").forEach(l=>l.style.display=q&&!l.dataset.n.includes(q)?"none":"")};
+  $("#gx-none",m).onclick=()=>{m.querySelectorAll("#gx-list input").forEach(c=>c.checked=false);updB()};
+  $("#gx-addb",m).onclick=()=>guard(m,async()=>{const ids=sel();if(!ids.length)throw{message:"Cochez au moins un groupe."};const b=$("#gx-addb",m);let k=0;
+    for(const id of ids){b.textContent=`Transfert ${++k} / ${ids.length}…`;await flag(id,true);if(ui.groupe===id){ui.groupe="";saveUi()}}
+    toast(`${ids.length} groupe${ids.length>1?"s":""} transféré${ids.length>1?"s":""} en hors matériel`);grpCleanup()});
+  m.querySelectorAll("[data-gxrm]").forEach(b=>b.onclick=()=>guard(m,async()=>{const nm=grpExtra()[b.dataset.gxrm];await flag(b.dataset.gxrm,false);toast(`« ${nm} » retiré de la liste`);grpCleanup()}));
   const go=$("#gx-go",m);if(go)go.onclick=()=>confirmInline(go,"Confirmer la suppression définitive ?",()=>guard(m,async()=>{
     const st=$("#gx-st",m),upd={};
-    for(const r of rows){for(const s2 of r.st)upd["data/stock/"+s2.id]=null;for(const a of r.arts){upd["data/articles/"+a.id]=null;if(a.photo&&a.photo.asset)upd["photos/"+a.photo.asset]=null}upd["data/groupes/"+r.g.id]=null}
+    for(const r of rows){for(const s2 of r.st)upd["data/stock/"+s2.id]=null;for(const a of r.arts){upd["data/articles/"+a.id]=null;if(a.photo&&a.photo.asset)upd["photos/"+a.photo.asset]=null}if(!r.g.horsMateriel||_grpEx.has(nrm(r.g.nom)))upd["data/groupes/"+r.g.id]=null}
     if(ui.groupe&&gs.some(g=>g.id===ui.groupe)){ui.groupe="";saveUi()}
     await batchWrite(upd,(k,n)=>st.textContent=`Suppression… ${k} / ${n}`);
     closeModal();toast(`${gs.length} groupe(s) et ${nA} article(s) hors matériel supprimés`)}));
@@ -1325,7 +1333,7 @@ function refForm(coll,row){
     if(row)await db.collection(coll).doc(row.id).update(data);else await db.collection(coll).add(data);
     closeModal();toast("Enregistré");
   });
-  const hm=$("#r-hm",m);if(hm)hm.onclick=()=>confirmInline(hm,"Confirmer : hors matériel ?",()=>guard(m,async()=>{const k=nrm(row.nom).replace(/ /g,"-").toLowerCase()||row.id;await db.collection("config").doc("grpExclu").set({noms:{...grpExtra(),[k]:row.nom},maj:Date.now(),par:myId||null});if(ui.groupe===row.id){ui.groupe="";saveUi()}toast(`« ${row.nom} » est maintenant hors matériel`);setTimeout(()=>grpCleanup(),400)}));
+  const hm=$("#r-hm",m);if(hm)hm.onclick=()=>confirmInline(hm,"Confirmer : hors matériel ?",()=>guard(m,async()=>{await db.collection("groupes").doc(row.id).update({horsMateriel:true,horsMaterielLe:Date.now()});if(ui.groupe===row.id){ui.groupe="";saveUi()}toast(`« ${row.nom} » est maintenant hors matériel`);setTimeout(()=>grpCleanup(),400)}));
   const del=$("#r-del",m);if(del)del.onclick=()=>{
     let used=0;if(coll==="groupes")used=S.articles.filter(a=>a.groupeId===row.id).length;if(coll==="unites")used=S.articles.filter(a=>a.uniteId===row.id).length;
     if(coll==="depots"){for(const a of S.articles)if(qty(a.id,row.id))used++}
@@ -1823,8 +1831,8 @@ const nrm=s=>String(s??"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toUpperCase(
 /* groupes qui ne sont pas du matériel : ignorés à la mise à jour du stock, aux imports et à la création d'articles */
 const GRP_EXCLU=["NOURRITURES PERISSABLES", "PRODUIT D ENTRETIEN TECHNIQUE", "AUTRES CONSOMMABLES RESTAURANT", "PIECES DE RECHANGE OZTI", "PIECE DE RECHANGE TECHNIQUE", "ELECTRICITE", "CHARCUTERIE", "EPICES", "BOISSON GAZEUSE", "BOF", "PRODUIT D ACCUEIL NON ALIMENTAIRE", "PAPETERIE", "RHUM/ANIS", "CAFE", "POISSON/CRUSTACE/FDM", "PRODUITS DE SOIN", "PATISSERIE/BOULANGERIE", "PRODUIT D ACCUEIL COMMERCIAL", "CREME/YAOURT/LAIT", "PRODUIT D ENTRETIEN HOTEL", "EAU MINERALE", "PATES/RIZ/FARINE", "GIN", "BIERES", "WHISKY", "JUS DE FRUITS", "LIQUEUR/VERMOUTH", "PRODUIT D ACCUEIL ALIMENTAIRE", "EMBALLAGE CUISINE", "IMPRIMES", "BOUCHERIE", "FRUITS ET LEGUMES SECS", "SIROP", "THE", "VIN ROSE", "VIN ROUGE"];
 const _grpEx=new Set(GRP_EXCLU.map(x=>nrm(x)));
-/* groupes ajoutés à la liste par l'administrateur (enregistrés dans data/config/grpExclu) */
-const grpExtra=()=>{const d=(S.config||[]).find(x=>x.id==="grpExclu");return d&&d.noms?d.noms:{}};
+/* groupes ajoutés par l'administrateur : marqués horsMateriel:true sur la fiche du groupe (le groupe reste comme repère, sans articles) */
+const grpExtra=()=>{const o={};for(const g of S.groupes)if(g.horsMateriel&&!_grpEx.has(nrm(g.nom)))o[g.id]=g.nom;return o};
 const grpExcluList=()=>[...GRP_EXCLU,...Object.values(grpExtra()).filter(n=>!_grpEx.has(nrm(n)))];
 const isGrpExclu=n=>{if(!n)return false;const k=nrm(n);if(_grpEx.has(k))return true;const e=grpExtra();for(const v of Object.values(e))if(nrm(v)===k)return true;return false};const isGidExclu=id=>{const g=id&&S.groupes.find(x=>x.id===id);return!!g&&isGrpExclu(g.nom)};
 const CODE_RE=/^(E\d{3,}|REF\d*|DGN\d*|ZY\d*|\d{5,})$/,STOPW=new Set(["REF","DGN","HP","ZH","CAMBRO","OZTI","NOSTRA","IC","TRSP"]);
