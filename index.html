@@ -346,6 +346,39 @@ tfoot td{border-top:1px solid var(--line);border-bottom:0}
 .ivr .iv-in.bad{border-color:var(--crit)}
 .ivr.done{background:color-mix(in srgb,var(--ok) 8%,transparent)}.ivr.done .iv-in{border-color:var(--ok)}
 @media (max-width:640px){.ivr{grid-template-columns:44px minmax(0,1fr) 100px}.ivr .im{width:44px;height:44px}.ivr .un{display:none}.ivr .iv-ob{grid-column:2/-1}}
+/* mode inventaire plein écran (tablette) */
+body.ivm-on{overflow:hidden}
+.ivm{position:fixed;inset:0;z-index:45;background:var(--bg);display:flex;flex-direction:column;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.ivm-h{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--accent);color:var(--accent-ink)}
+.ivm-t{flex:1;min-width:0;display:flex;flex-direction:column}.ivm-t b{font-size:18px;line-height:1.2}.ivm-t span{color:inherit;opacity:.85;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ivm-p{display:flex;align-items:center;gap:8px;width:min(260px,30vw)}.ivm-p .iv-prog{flex:1;background:rgba(255,255,255,.3)}.ivm-p .iv-prog span{background:#fff}
+.ivm-h .btn{background:rgba(255,255,255,.15);color:inherit;border-color:rgba(255,255,255,.4)}
+.ivm-f{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.ivm-f input[type=search]{flex:1;min-width:180px;font-size:16px;padding:11px 12px}.ivm-f select{font-size:15px;padding:10px;max-width:260px}
+.ivm-f .btn{padding:11px 16px;font-size:15px}
+.ivm-l{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 12px 40px}
+.ivm-g{position:sticky;top:-8px;z-index:1;background:var(--bg);padding:10px 4px 6px;font-weight:700;font-size:13px;letter-spacing:.04em;color:var(--accent)}
+.ivm-r{display:grid;grid-template-columns:96px minmax(0,1fr) auto;grid-template-areas:"ph nm q" "ph ob ob";gap:8px 14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.ivm-r.done{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 7%,var(--surface))}
+.ivm-ph{grid-area:ph;width:96px;height:96px;border-radius:10px;border:1px dashed var(--line);background:#fff;padding:0;overflow:hidden;display:grid;place-items:center;cursor:pointer;position:relative}
+.ivm-ph img{width:100%;height:100%;object-fit:contain}.ivm-ph .cam{position:absolute;right:3px;bottom:3px;background:rgba(0,0,0,.55);color:#fff;border-radius:6px;font-size:13px;padding:1px 4px}
+.ivm-noph{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--warn);font-size:26px}.ivm-noph small{font-size:11px;font-weight:600}
+.ivm-nm{grid-area:nm;min-width:0;display:flex;flex-direction:column;gap:2px}.ivm-nm b{font-size:15px;line-height:1.3}
+.ivm-q{grid-area:q;display:flex;align-items:center;gap:6px}
+.ivm-q .iv-in{width:92px;font-family:var(--f-mono);font-size:22px;font-weight:700;text-align:center;padding:10px 4px}
+.ivm-q .iv-in.bad{border-color:var(--crit)}.ivm-r.done .iv-in{border-color:var(--ok)}
+.ivm-b{width:52px;height:52px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);font-size:26px;font-weight:700;color:var(--ink);cursor:pointer;touch-action:manipulation}
+.ivm-b:active{background:var(--accent);color:var(--accent-ink)}
+.ivm-r .iv-ob{grid-area:ob;font-size:14px;padding:9px 10px}
+.ivm-nv{align-self:flex-start}
+.ivm-empty{padding:30px;text-align:center;color:var(--muted)}
+.ivm-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.ivm-pick .btn{padding:16px;font-size:16px;justify-content:center}
+.ivm-big{width:100%;max-height:46vh;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:10px}
+.ivm-sug{display:flex;flex-direction:column;gap:6px;max-height:34vh;overflow:auto}
+.ivm-sug button{display:flex;gap:10px;align-items:center;text-align:left;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;color:var(--ink)}
+.ivm-sug img,.ivm-sug .ph0{width:44px;height:44px;object-fit:contain;background:#fff;border-radius:6px;flex:none;display:grid;place-items:center;color:#9aa}
+@media (max-width:700px){.ivm-r{grid-template-columns:72px minmax(0,1fr);grid-template-areas:"ph nm" "ph q" "ob ob"}.ivm-ph{width:72px;height:72px}.ivm-p{display:none}}
 tr.ivg-r td{background:var(--surface-2);font-weight:700;font-size:12px;letter-spacing:.04em}
 .iv-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}@media (max-width:640px){.iv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* ===== Préférences d'affichage (par utilisateur) ===== */
@@ -2635,13 +2668,13 @@ function renderInv(b){
      <div class="iv-prog" title="${pct} %"><span style="width:${pct}%"></span></div>
      <div class="trc-foot"><span>${s.c} / ${s.n} article${s.n>1?"s":""} compté${s.c>1?"s":""}</span>${(canAdmin||t.statut==="valide")&&s.c?`<span class="${s.e?"iv-bad":"iv-good"}">${s.e?s.e+" écart"+(s.e>1?"s":""):"Aucun écart"}</span>`:""}</div>
      <div class="hint">${t.statut==="valide"?`Validé${names[t.validePar]?" par "+esc(names[t.validePar]):""} le ${fdt(t.valideLe)}`:`Créé${names[t.creePar]?" par "+esc(names[t.creePar]):""} le ${fdt(t.cree)}`}</div>
-     <div class="trc-act">${t.statut!=="valide"&&canWrite?`<button type="button" class="btn sm primary" data-a="saisie">✎ Saisir le comptage</button>`:""}<button type="button" class="btn sm" data-a="fiche">🖨 Fiche</button>${canAdmin||t.statut==="valide"?`<button type="button" class="btn sm" data-a="etat">📊 État</button>`:""}${canAdmin&&t.statut!=="valide"?`<span class="grow"></span><button type="button" class="btn sm danger" data-a="del" title="Supprimer">🗑</button>`:""}</div></div>`}).join("")}</div>`;
+     <div class="trc-act">${t.statut!=="valide"&&canWrite?`<button type="button" class="btn sm primary" data-a="mode">📱 Mode inventaire</button><button type="button" class="btn sm" data-a="saisie">✎ Saisie rapide</button>`:""}<button type="button" class="btn sm" data-a="fiche">🖨 Fiche</button>${canAdmin||t.statut==="valide"?`<button type="button" class="btn sm" data-a="etat">📊 État</button>`:""}${canAdmin&&t.statut!=="valide"?`<span class="grow"></span><button type="button" class="btn sm danger" data-a="del" title="Supprimer">🗑</button>`:""}</div></div>`}).join("")}</div>`;
   b.querySelectorAll("[data-iv]").forEach(el=>{const id=el.dataset.iv;
-    const open=()=>{const t=(S.inventaires||[]).find(x=>x.id===id);if(!t)return;if(t.statut!=="valide"&&canWrite)invSaisie(id);else if(canAdmin||t.statut==="valide")invEtat(id);else invFiche([id])};
+    const open=()=>{const t=(S.inventaires||[]).find(x=>x.id===id);if(!t)return;if(t.statut!=="valide"&&canWrite){if(matchMedia("(pointer:coarse)").matches)invMode(id);else invSaisie(id)}else if(canAdmin||t.statut==="valide")invEtat(id);else invFiche([id])};
     el.onclick=e=>{if(e.target.closest("[data-a]"))return;open()};
     el.onkeydown=e=>{if((e.key==="Enter"||e.key===" ")&&e.target===el){e.preventDefault();open()}};
     el.querySelectorAll("[data-a]").forEach(btn=>btn.onclick=e=>{e.stopPropagation();const a=btn.dataset.a;
-      if(a==="saisie")invSaisie(id);else if(a==="fiche")invFiche([id]);else if(a==="etat")invEtat(id);
+      if(a==="mode")invMode(id);else if(a==="saisie")invSaisie(id);else if(a==="fiche")invFiche([id]);else if(a==="etat")invEtat(id);
       else if(a==="del")confirmInline(btn,"Supprimer ?",async()=>{try{const r=db.doc("inventaires/"+id),s=await r.get();if(s.exists&&s.data().statut==="valide"){toast("Inventaire validé : suppression impossible.");return}await r.delete();toast("Inventaire "+id+" supprimé")}catch(x){toast(errText(x))}})})});
 }
 /* articles d'un dépôt pour des groupes donnés */
@@ -2727,7 +2760,7 @@ function invSaisie(id){
     <div class="trx-filters"><input type="search" id="ivs-q" placeholder="Rechercher un article, un code…"><select id="ivs-g"><option value="">Tous les groupes</option>${gnames.map(n=>`<option>${esc(n)}</option>`).join("")}</select><label class="check"><input type="checkbox" id="ivs-todo"> Non comptés seulement</label></div>
     <p class="hint" style="margin:0">Saisissez la quantité réellement comptée. Chaque saisie est enregistrée immédiatement. Laissez vide un article non compté.</p>
     <div class="iv-rows" id="ivs-rows"></div><div class="err"></div></div>
-   <footer><button class="btn left" id="ivs-fiche">🖨 Fiche</button>${canAdmin?`<button class="btn" id="ivs-etat">📊 État d'inventaire</button>`:""}<button class="btn primary" data-close>Terminer</button></footer>`,{wide:"xl"});
+   <footer><button class="btn left" id="ivs-fiche">🖨 Fiche</button>${canAdmin?`<button class="btn" id="ivs-etat">📊 État d'inventaire</button>`:""}<button class="btn" id="ivs-mode">📱 Mode inventaire</button><button class="btn primary" data-close>Terminer</button></footer>`,{wide:"xl"});
   const prog=()=>{const n=Object.keys(loc).length,c=Object.values(loc).filter(hasC).length,p=n?Math.round(c/n*100):0;$("#iv-bar",m).style.width=p+"%";$("#iv-pc",m).textContent=`${c} / ${n}`};
   const draw=()=>{const words=q?q.split(/\s+/):[];let lastG=null,html="";
     for(const l of ls){if(fg&&l.gn!==fg)continue;if(todo&&hasC(loc[l.aid]))continue;const nm=l.ar?.nom||l.n||"Article supprimé";
@@ -2749,9 +2782,115 @@ function invSaisie(id){
   $("#ivs-q",m).oninput=e=>{q=e.target.value.trim().toLowerCase();draw()};
   $("#ivs-g",m).onchange=e=>{fg=e.target.value;draw()};
   $("#ivs-todo",m).onchange=e=>{todo=e.target.checked;draw()};
-  $("#ivs-fiche",m).onclick=()=>invFiche([id]);
+  $("#ivs-fiche",m).onclick=()=>invFiche([id]);$("#ivs-mode",m).onclick=()=>invMode(id);
   const et=$("#ivs-etat",m);if(et)et.onclick=()=>invEtat(id);
   draw();setTimeout(()=>{const f=m.querySelector(".iv-in");if(f)f.focus()},60);
+}
+/* ---------- Mode inventaire (plein écran, tablette) : comptage, photos, articles trouvés ---------- */
+function invMode(id){
+  const t0=(S.inventaires||[]).find(x=>x.id===id);if(!t0)return;if(t0.statut==="valide"){invEtat(id);return}
+  if(!canWrite){toast("Accès en lecture seule : comptage impossible.");return}
+  closeModal();invModeClose();
+  const dep=D()[t0.depotId],loc=JSON.parse(JSON.stringify(t0.lignes||{}));let q="",fg="",todo=false;
+  const R=document.createElement("div");R.id="ivm";R.className="ivm";R.setAttribute("role","dialog");R.setAttribute("aria-label","Mode inventaire");
+  R.innerHTML=`<header class="ivm-h"><div class="ivm-t"><b>${esc(dep?.nom||"Dépôt")}</b><span>N° ${esc(t0.numero)} · ${esc(invGroupsTxt(t0))} · ${fdate(t0.date)}</span></div>
+    <div class="ivm-p"><div class="iv-prog"><span id="ivm-bar"></span></div><b class="mono" id="ivm-pc"></b></div><button class="btn" id="ivm-x">✕ Quitter</button></header>
+   <div class="ivm-f"><input type="search" id="ivm-q" placeholder="Rechercher un article, un code…" autocomplete="off"><select id="ivm-g"></select><label class="check"><input type="checkbox" id="ivm-todo"> Non comptés</label><label class="check"><input type="checkbox" id="ivm-noph"> Sans photo</label><button class="btn primary" id="ivm-add">＋ Article trouvé</button></div>
+   <div class="ivm-l" id="ivm-l"></div><div class="err" style="padding:0 16px 8px"></div>`;
+  document.body.appendChild(R);document.body.classList.add("ivm-on");
+  const L=$("#ivm-l",R),er=R.querySelector(".err");let noph=false;
+  const lines=()=>invLines({lignes:loc});
+  const prog=()=>{const n=Object.keys(loc).length,c=Object.values(loc).filter(hasC).length,p=n?Math.round(c/n*100):0;$("#ivm-bar",R).style.width=p+"%";$("#ivm-pc",R).textContent=`${c} / ${n}`};
+  const fillG=()=>{const gs=[...new Set(lines().map(l=>l.gn))];$("#ivm-g",R).innerHTML=`<option value="">Tous les groupes</option>`+gs.map(n=>`<option ${n===fg?"selected":""}>${esc(n)}</option>`).join("")};
+  const xa={};const rowHtml=l=>{const a=A()[l.aid]||xa[l.aid]||l.ar,nm=a?.nom||l.n||"Article supprimé",s=photoSrc(a),v=loc[l.aid]||{},un=U()[a?.uniteId];
+    return`<div class="ivm-r ${hasC(v)?"done":""}" data-aid="${esc(l.aid)}"><button type="button" class="ivm-ph" aria-label="Photo de ${esc(nm)}">${s?`<img src="${esc(s)}" alt="" loading="lazy"><span class="cam">📷</span>`:`<span class="ivm-noph">📷<small>Ajouter photo</small></span>`}</button>
+     <div class="ivm-nm"><b>${esc(nm)}</b><span class="hint mono">${esc(a?.code||"")}${a?.reference?" · "+esc(a.reference):""}</span><span class="hint">${uS(un?.nom||"")}</span>${v.nv?`<span class="pill warn ivm-nv">Nouvel article</span>`:""}</div>
+     <div class="ivm-q"><button type="button" class="ivm-b" data-d="-1" aria-label="Moins">−</button><input type="number" inputmode="decimal" min="0" step="any" class="iv-in" value="${hasC(v)?esc(v.c):""}" placeholder="Qté" aria-label="Quantité comptée ${esc(nm)}"><button type="button" class="ivm-b" data-d="1" aria-label="Plus">+</button></div>
+     <input type="text" class="iv-ob" value="${esc(v.o||"")}" placeholder="Observation"></div>`};
+  const save=async(aid,v,row)=>{const cur=loc[aid]||(loc[aid]={});if((hasC(cur)?+cur.c:null)===v)return;const inp=row.querySelector(".iv-in");
+    try{await db.doc("inventaires/"+id).update({["lignes/"+aid+"/c"]:v,["lignes/"+aid+"/par"]:myId||null,["lignes/"+aid+"/t"]:Date.now()});
+      if(v===null)delete cur.c;else cur.c=v;row.classList.toggle("done",v!==null);inp.classList.remove("bad");er.textContent="";prog()}
+    catch(x){inp.classList.add("bad");er.textContent=errText(x)}};
+  const bind=row=>{const aid=row.dataset.aid,inp=row.querySelector(".iv-in");
+    inp.onchange=()=>{const raw=inp.value.trim().replace(",",".");if(raw!==""&&isNaN(+raw)){inp.classList.add("bad");return}save(aid,raw===""?null:Math.max(0,+raw),row)};
+    inp.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();inp.blur();const all=[...L.querySelectorAll(".iv-in")],nx=all[all.indexOf(inp)+1];if(nx){nx.focus();nx.select()}}};
+    row.querySelectorAll(".ivm-b").forEach(b=>b.onclick=()=>{const c=inp.value.trim()===""?0:+inp.value.replace(",",".")||0;const v=Math.max(0,c+(+b.dataset.d));inp.value=v;save(aid,v,row)});
+    const ob=row.querySelector(".iv-ob");ob.onchange=async()=>{const o=ob.value.trim().toUpperCase();ob.value=o;try{await db.doc("inventaires/"+id).update({["lignes/"+aid+"/o"]:o||null});(loc[aid]||(loc[aid]={})).o=o}catch(x){er.textContent=errText(x)}};
+    row.querySelector(".ivm-ph").onclick=()=>invPhoto(aid,()=>{const a=A()[aid];const nw=document.createElement("div");nw.innerHTML=rowHtml({aid,ar:a,...loc[aid]});const r2=nw.firstElementChild;row.replaceWith(r2);bind(r2)})};
+  const draw=()=>{const words=q?q.split(/\s+/):[];let lastG=null,html="";const a=A();
+    for(const l of lines()){if(fg&&l.gn!==fg)continue;if(todo&&hasC(loc[l.aid]))continue;const ar=a[l.aid]||xa[l.aid];if(noph&&photoSrc(ar))continue;
+      if(words.length){const hay=((ar?.nom||l.n||"")+" "+(ar?.code||"")+" "+(ar?.reference||"")).toLowerCase();if(!words.every(w=>hay.includes(w)))continue}
+      if(l.gn!==lastG){html+=`<div class="ivm-g">${esc(l.gn)}</div>`;lastG=l.gn}html+=rowHtml(l)}
+    L.innerHTML=html||`<div class="ivm-empty">Aucun article ne correspond.${q?` <br><br><button class="btn primary" id="ivm-add2">＋ Ajouter « ${esc(q.toUpperCase())} » comme article trouvé</button>`:""}</div>`;
+    L.querySelectorAll(".ivm-r").forEach(bind);const a2=$("#ivm-add2",L);if(a2)a2.onclick=()=>found(q.toUpperCase());prog()};
+  const found=pre=>invFound(t0,loc,pre,(aid,ar)=>{if(ar)xa[aid]={id:aid,...ar};fillG();q="";$("#ivm-q",R).value="";todo=false;$("#ivm-todo",R).checked=false;draw();const r=L.querySelector(`[data-aid="${CSS.escape(aid)}"]`);if(r){r.scrollIntoView({block:"center"});r.style.outline="3px solid var(--accent)";setTimeout(()=>r.style.outline="",1600)}});
+  $("#ivm-q",R).oninput=e=>{q=e.target.value.trim().toLowerCase();draw()};
+  $("#ivm-g",R).onchange=e=>{fg=e.target.value;draw()};
+  $("#ivm-todo",R).onchange=e=>{todo=e.target.checked;draw()};
+  $("#ivm-noph",R).onchange=e=>{noph=e.target.checked;draw()};
+  $("#ivm-add",R).onclick=()=>found("");
+  $("#ivm-x",R).onclick=()=>{invModeClose();renderAll()};
+  fillG();draw();
+}
+function invModeClose(){const r=document.getElementById("ivm");if(r)r.remove();document.body.classList.remove("ivm-on")}
+/* photo d'un article : voir, prendre (appareil photo) ou choisir, enregistrée directement sur la fiche article */
+function invPhoto(aid,done){
+  const a=A()[aid];if(!a){toast("Article introuvable.");return}
+  if(!assets&&!canWrite){toast("Accès en lecture seule.");return}
+  const s=photoSrc(a);
+  const m=openModal(`<header><h2>${s?"Photo de l'article":"Ajouter une photo"}</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><b>${esc(a.nom)}</b><span class="hint mono">${esc(a.code||"")}</span>
+    <div id="ivp-v">${s?`<img class="ivm-big" src="${esc(s)}" data-full alt="">`:`<p class="hint" style="margin:0">Cet article n'a pas encore de photo.</p>`}</div>
+    <div class="ivm-pick"><label class="btn primary" style="cursor:pointer">📷 Prendre une photo<input type="file" id="ivp-cam" accept="image/*" capture="environment" hidden></label><label class="btn" style="cursor:pointer">🖼 Choisir une image<input type="file" id="ivp-gal" accept="image/*" hidden></label></div>
+    <p class="hint" style="margin:0">La photo est réduite automatiquement et enregistrée tout de suite sur la fiche de l'article (visible partout dans l'appli).</p><div class="err"></div></div>
+   <footer><button class="btn" data-close>Annuler</button><button class="btn primary" id="ivp-ok" disabled>Enregistrer la photo</button></footer>`);
+  let file=null;const pick=e=>{const f=e.target.files[0];if(!f)return;file=f;$("#ivp-v",m).innerHTML=`<img class="ivm-big" src="${URL.createObjectURL(f)}" alt="">`;const b=$("#ivp-ok",m);b.disabled=false;b.focus()};
+  $("#ivp-cam",m).onchange=pick;$("#ivp-gal",m).onchange=pick;
+  $("#ivp-ok",m).onclick=()=>guard(m,async()=>{if(!file)return;$("#ivp-ok",m).textContent="Envoi de la photo…";
+    const old=a.photo&&a.photo.asset;const ph=await preparePhoto(file);
+    await db.collection("articles").doc(aid).update({photo:ph,maj:Date.now()});a.photo=ph;
+    if(old&&assets){try{await assets.delete(old)}catch(e){}}
+    closeModal();toast("Photo enregistrée");if(done)done()});
+}
+/* article trouvé physiquement : soit déjà dans la base (ajout à la fiche), soit création d'un nouvel article */
+function invFound(t0,loc,pre,done){
+  const dep=D()[t0.depotId],ugs=S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)),g0=(t0.groupes||[])[0]||"";
+  const defU=S.unites.find(u=>u.id==="pce")?.id||"";let file=null;
+  const m=openModal(`<header><h2>Article trouvé dans le dépôt</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p class="hint" style="margin:0">Cherchez d'abord s'il existe déjà dans la base (même hors de cette fiche). Sinon, créez-le : il sera ajouté à la base et à cette fiche avec la quantité comptée.</p>
+    <label class="f">Désignation<input type="text" id="ivf-nom" value="${esc(pre||"")}" placeholder="Ex. PLATEAU ROND INOX 40CM" autocomplete="off"></label>
+    <div class="ivm-sug" id="ivf-sug"></div>
+    <div class="photo-pick"><div class="ph" id="ivf-ph">${PH_SVG}</div><div style="display:flex;flex-direction:column;gap:6px"><label class="btn" style="cursor:pointer">📷 Prendre une photo<input type="file" id="ivf-cam" accept="image/*" capture="environment" hidden></label><label class="btn ghost sm" style="cursor:pointer">🖼 Choisir une image<input type="file" id="ivf-gal" accept="image/*" hidden></label></div></div>
+    <div class="fgrid">
+     <label class="f">Groupe d'article<select id="ivf-grp"><option value="">— Choisir —</option>${groupOptions(g0)}</select></label>
+     <label class="f">Unité<select id="ivf-un"><option value="">— Choisir —</option>${ugs.map(x=>`<option value="${x.id}" ${x.id===defU?"selected":""}>${esc(x.nom)}${x.abrev?" ("+esc(x.abrev)+")":""}</option>`).join("")}</select></label>
+     <label class="f">Quantité comptée<input type="number" inputmode="decimal" min="0" step="any" id="ivf-q" placeholder="0"></label>
+     <label class="f">Marque / référence<input type="text" id="ivf-ref" placeholder="Facultatif"></label>
+     <label class="f full">Observation<input type="text" id="ivf-ob" placeholder="Facultatif"></label>
+    </div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Annuler</button><button class="btn primary" id="ivf-ok">＋ Créer l'article et l'ajouter</button></footer>`);
+  const pick=e=>{const f=e.target.files[0];if(!f)return;file=f;$("#ivf-ph",m).innerHTML=`<img src="${URL.createObjectURL(f)}" alt="">`};
+  $("#ivf-cam",m).onchange=pick;$("#ivf-gal",m).onchange=pick;
+  const addLine=async(aid,ar,c,o,nv)=>{const l={g:ar.groupeId||"",th:nv?0:qty(aid,t0.depotId),n:ar.nom||"",ajout:true,...(nv?{nv:true}:{}),...(c!==null?{c,par:myId||null,t:Date.now()}:{}),...(o?{o}:{})};
+    await db.doc("inventaires/"+t0.id).update({["lignes/"+aid]:l});loc[aid]=l};
+  const sug=()=>{const v=nrm($("#ivf-nom",m).value),box=$("#ivf-sug",m);if(v.length<3){box.innerHTML="";return}
+    const ws=v.split(" ").filter(Boolean);const hits=S.articles.filter(a=>!isGidExclu(a.groupeId)).filter(a=>{const h=nrm(a.nom+" "+(a.code||"")+" "+(a.reference||""));return ws.every(w=>h.includes(w))}).slice(0,8);
+    box.innerHTML=hits.length?`<span class="hint">Déjà dans la base ? Touchez l'article pour l'ajouter à la fiche :</span>`+hits.map(a=>{const s=photoSrc(a),inF=!!loc[a.id];return`<button type="button" data-a="${esc(a.id)}" ${inF?"disabled":""}>${s?`<img src="${esc(s)}" alt="">`:`<span class="ph0">${PH_SVG}</span>`}<span><b>${esc(a.nom)}</b><br><span class="hint mono">${esc(a.code||"")} · ${esc(G()[a.groupeId]?.nom||"")}${inF?" · déjà sur la fiche":""}</span></span></button>`}).join(""):"";
+    box.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>guard(m,async()=>{const aid=b.dataset.a,ar=A()[aid];const cq=$("#ivf-q",m).value.trim();
+      await addLine(aid,ar,cq===""?null:Math.max(0,+cq.replace(",",".")||0),$("#ivf-ob",m).value.trim().toUpperCase(),false);closeModal();toast("Article ajouté à la fiche");done(aid)}))};
+  $("#ivf-nom",m).oninput=sug;sug();
+  $("#ivf-ok",m).onclick=()=>guard(m,async()=>{
+    const nom=$("#ivf-nom",m).value.trim().toUpperCase().replace(/\s+/g," ");if(!nom)throw{message:"La désignation est obligatoire."};
+    const gid=$("#ivf-grp",m).value,uid=$("#ivf-un",m).value;if(!gid)throw{message:"Choisissez le groupe d'article."};if(!uid)throw{message:"Choisissez l'unité."};
+    if(isGidExclu(gid))throw{message:"Ce groupe n'est pas du matériel : il n'est plus accepté dans l'appli."};
+    if(S.articles.some(a=>nrm(a.nom)===nrm(nom)))throw{message:"Un article porte déjà exactement ce nom : touchez-le dans la liste ci-dessus pour l'ajouter."};
+    const cq=$("#ivf-q",m).value.trim();const c=cq===""?null:Math.max(0,+cq.replace(",",".")||0);
+    const b=$("#ivf-ok",m);const now=Date.now();
+    const data={code:nextCode(),nom,groupeId:gid,uniteId:uid,hotel:dep?.hotel||"LES2",seuil:0,reference:$("#ivf-ref",m).value.trim().toUpperCase(),description:("CRÉÉ LORS DE L'INVENTAIRE "+t0.numero+" ("+(dep?.nom||"")+")").toUpperCase(),depotDefaut:t0.depotId,cree:now,maj:now,par:myId||null};
+    if(file){b.textContent="Envoi de la photo…";data.photo=await preparePhoto(file)}
+    b.textContent="Création…";const ref=db.collection("articles").doc();await ref.set(data);
+    await addLine(ref.id,data,c,$("#ivf-ob",m).value.trim().toUpperCase()||"NOUVEL ARTICLE (TROUVÉ À L'INVENTAIRE)",true);
+    closeModal();toast(`Article ${data.code} créé et ajouté à la fiche`);done(ref.id,data)});
 }
 /* état d'inventaire : théorique / compté / écart */
 function invEtat(id){
@@ -2765,7 +2904,7 @@ function invEtat(id){
     <div class="kpis iv-kpis"><div class="kpi"><span class="eyebrow">Articles</span><b>${s.n}</b></div><div class="kpi"><span class="eyebrow">Comptés</span><b>${s.c}</b><span class="sub">${s.n-s.c} non compté${s.n-s.c>1?"s":""}</span></div><div class="kpi ${s.e?"alert":""}"><span class="eyebrow">Écarts</span><b>${s.e}</b><span class="sub">${s.c-s.e} conforme${s.c-s.e>1?"s":""}</span></div><div class="kpi"><span class="eyebrow">Écart total</span><b><span class="iv-good">+${fmt(s.pos)}</span> / <span class="iv-bad">${fmt(s.neg)}</span></b><span class="sub">surplus / manquants</span></div></div>
     <label class="check"><input type="checkbox" id="ive-only"> Afficher seulement les écarts et les non comptés</label>
     <div class="tablewrap" id="ive-tab"></div><div class="err"></div></div>
-   <footer><button class="btn left" id="ive-pdf">⬇ État en PDF</button><button class="btn" id="ive-fiche">🖨 Fiche</button>${t.statut!=="valide"&&canWrite?`<button class="btn" id="ive-saisie">✎ Saisie</button>`:""}${canAdmin&&t.statut!=="valide"?`<button class="btn primary" id="ive-val">✓ Valider l'inventaire</button>`:`<button class="btn primary" data-close>Fermer</button>`}</footer>`,{wide:"xl"});
+   <footer><button class="btn left" id="ive-pdf">⬇ État en PDF</button><button class="btn" id="ive-fiche">🖨 Fiche</button>${t.statut!=="valide"&&canWrite?`<button class="btn" id="ive-mode">📱 Mode inventaire</button><button class="btn" id="ive-saisie">✎ Saisie</button>`:""}${canAdmin&&t.statut!=="valide"?`<button class="btn primary" id="ive-val">✓ Valider l'inventaire</button>`:`<button class="btn primary" data-close>Fermer</button>`}</footer>`,{wide:"xl"});
   const draw=()=>{let lastG=null,rows="";
     for(const l of ls){const c=hasC(l),d=c?(+l.c)-(+l.th||0):null;if(onlyE&&c&&Math.abs(d)<1e-9)continue;
       if(l.gn!==lastG){rows+=`<tr class="ivg-r"><td colspan="7">${esc(l.gn)}</td></tr>`;lastG=l.gn}
@@ -2775,7 +2914,7 @@ function invEtat(id){
   $("#ive-only",m).onchange=e=>{onlyE=e.target.checked;draw()};draw();
   $("#ive-pdf",m).onclick=()=>invPdfDl([id],"etat",m);
   $("#ive-fiche",m).onclick=()=>invFiche([id]);
-  const sa=$("#ive-saisie",m);if(sa)sa.onclick=()=>invSaisie(id);
+  const sa=$("#ive-saisie",m);if(sa)sa.onclick=()=>invSaisie(id);const mo=$("#ive-mode",m);if(mo)mo.onclick=()=>invMode(id);
   const vb=$("#ive-val",m);if(vb)vb.onclick=()=>{const err=m.querySelector(".err");err.textContent="";
     if(!s.c){err.textContent="Aucune quantité n'a été saisie.";return}
     confirmInline(vb,s.n-s.c?`Confirmer (${s.n-s.c} non compté${s.n-s.c>1?"s":""} : stock inchangé)`:"Confirmer : corriger le stock",()=>guard(m,async()=>{
