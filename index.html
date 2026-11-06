@@ -782,7 +782,7 @@ function renderAll(){renderToolbar();renderBody()}
 function depFilt(a){const sd0=selDeps();const sd=sd0.length===depotsVis().length?[]:sd0;return!sd.length||(ui.depMode==="all"?sd.every(d=>inDep(a,d)):sd.some(d=>inDep(a,d)))}
 function usedGroups(){const u=new Set(artVis().filter(depFilt).map(a=>a.groupeId));return S.groupes.filter(g=>u.has(g.id))}
 function filterGroupOptions(sel){return`<option value="">Tous les groupes</option>`+usedGroups().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<option value="${g.id}" ${g.id===sel?"selected":""}>${esc(g.nom)}</option>`).join("")}
-function groupOptions(sel,allLabel){return(allLabel!==undefined?`<option value="">${allLabel}</option>`:"")+S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<option value="${g.id}" ${g.id===sel?"selected":""}>${esc(g.nom)}</option>`).join("")}
+function groupOptions(sel,allLabel){return(allLabel!==undefined?`<option value="">${allLabel}</option>`:"")+S.groupes.filter(g=>g.id===sel||!isGrpExclu(g.nom)).slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<option value="${g.id}" ${g.id===sel?"selected":""}>${esc(g.nom)}</option>`).join("")}
 function renderToolbar(){
   const tb=$("#toolbar");const w=canWrite;
   if(ui.tab==="dash"){tb.innerHTML=w?`<div class="grow"></div>${canAdmin?`<button class="btn" id="tb-art">+ Article</button><button class="btn" id="tb-mv">+ Mouvement</button>`:""}<button class="btn" id="tb-dc">+ Casse / perte</button><button class="btn primary" id="tb-tr">⇄ Transfert</button>`:"";}
@@ -1228,15 +1228,35 @@ function renderParams(b){
   const w=canAdmin;const depSort=(a,b)=>((a.hotel==="LES2"?"0":a.hotel)+a.nom).localeCompare((b.hotel==="LES2"?"0":b.hotel)+b.nom);const usedG=new Set(S.articles.map(a=>a.groupeId)),usedU=new Set(S.articles.map(a=>a.uniteId));
   const deps=S.depots.slice().sort(depSort).filter(d=>ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2");
   const isAdm=window.FB&&window.FB.role()==="admin";
-  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button><button class="btn" id="adm-pho">🗜 Optimiser les photos</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
+  b.innerHTML=(isAdm?`<div class="panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b style="flex:1;min-width:200px">Administration</b><button class="btn" id="adm-acc">👥 Comptes &amp; départements</button><button class="btn" id="adm-stk">📊 Contrôle du stock (Excel)</button><button class="btn" id="adm-dup">🔍 Doublons d'articles</button><button class="btn" id="adm-pho">🗜 Optimiser les photos</button><button class="btn" id="adm-gex">🧹 Groupes hors matériel</button>${(S.articles.length&&!ui.forceImport)?"":`<input type="file" id="adm-files" multiple accept=".json,application/json" style="max-width:260px;text-transform:none"><button class="btn primary" id="adm-imp">⬇ Importer</button>`}</div>`:"")+`<div class="settings">
    <div class="panel"><h2>Dépôts <small>${deps.length}</small></h2>${w&&deps.some(d=>!d.departement&&deptGuess(d.nom))?`<div class="lock" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:180px">${deps.filter(d=>!d.departement&&deptGuess(d.nom)).length} dépôt(s) classé(s) automatiquement (proposé). Vérifiez puis enregistrez.</span><button class="btn sm primary" id="dp-save">Enregistrer les départements proposés</button></div>`:""}<div class="list">${(()=>{const depQ={};for(const a of S.articles){const o=stockByArt.get(a.id);if(o)for(const d in o)depQ[d]=(depQ[d]||0)+o[d]}window.__depQ=depQ;return""})()}${[...DEPTS,""].map(h=>{const ds=deps.filter(d=>depDept(d)===h);if(!ds.length)return"";return`<div class="dd-h" style="margin:10px 0 2px;color:var(--accent);font-weight:700">${h?"DÉPARTEMENT "+esc(h):"SANS DÉPARTEMENT"} <span class="hint">· ${ds.length} dépôt${ds.length>1?"s":""}</span></div>`+ds.map(d=>{const q=window.__depQ[d.id]||0;return`<div class="li"><div class="t"><b>${esc(d.nom)}</b><span>${d.hotel==="LES2"?"Commun aux deux · ":""}${esc(d.emplacement||"")}${d.emplacement?" · ":""}${fmt(q)} unités en stock${!d.departement&&h?" · <i>département proposé</i>":""}</span></div>${w?`<button class="btn sm ghost" data-ed="depots:${d.id}">Modifier</button>`:""}</div>`}).join("")}).join("")||`<p class="hint">Aucun dépôt.</p>`}</div>${w?`<button class="btn" data-new="depots" style="margin-top:10px">+ Dépôt</button>`:""}</div>
    <div class="panel"><h2>Groupes d'articles <small>${S.groupes.length}</small></h2><div class="list">${S.groupes.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(g=>`<div class="li"><span class="swatch" style="--c:${groupColor(g)}"></span><div class="t"><b>${esc(g.nom)}</b><span>${S.articles.filter(a=>a.groupeId===g.id).length} articles</span></div>${w?`<button class="btn sm ghost" data-ed="groupes:${g.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucun groupe.</p>`}</div>${w?`<button class="btn" data-new="groupes" style="margin-top:10px">+ Groupe</button>`:""}</div>
    <div class="panel"><h2>Unités <small>${S.unites.length}</small></h2><div class="list">${S.unites.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="li"><div class="t"><b class="u">${esc(x.nom)}</b><span class="mono u">${esc(x.abrev||"")}</span></div>${w?`<button class="btn sm ghost" data-ed="unites:${x.id}">Modifier</button>`:""}</div>`).join("")||`<p class="hint">Aucune unité.</p>`}</div>${w?`<button class="btn" data-new="unites" style="margin-top:10px">+ Unité</button>`:""}</div>
   </div>`;
   b.querySelectorAll("[data-new]").forEach(x=>x.onclick=()=>refForm(x.dataset.new));
-  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const dpb=$("#adm-dup",b);if(dpb)dpb.onclick=()=>dupTool();const pob=$("#adm-pho",b);if(pob)pob.onclick=()=>photoOptimize();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
+  const aa=$("#adm-acc",b);if(aa)aa.onclick=()=>window.accessPanel();const sk=$("#adm-stk",b);if(sk)sk.onclick=()=>stockCheck();const dpb=$("#adm-dup",b);if(dpb)dpb.onclick=()=>dupTool();const pob=$("#adm-pho",b);if(pob)pob.onclick=()=>photoOptimize();const gxb=$("#adm-gex",b);if(gxb)gxb.onclick=()=>grpCleanup();const ai=$("#adm-imp",b);if(ai)ai.onclick=()=>window.importInitial(ai);
   b.querySelectorAll("[data-ed]").forEach(x=>x.onclick=()=>{const[c,id]=x.dataset.ed.split(":");refForm(c,S[c].find(r=>r.id===id))});
   const dps=$("#dp-save",b);if(dps)dps.onclick=()=>confirmInline(dps,"Confirmer l'enregistrement ?",async()=>{dps.disabled=true;try{let n=0;for(const d of S.depots){if(d.departement)continue;const g=deptGuess(d.nom);if(!g)continue;await db.collection("depots").doc(d.id).update({departement:g});n++}toast(n+" dépôt(s) classé(s) par département")}catch(e){toast(errText(e));dps.disabled=false}});
+}
+
+/* ---------- Suppression des groupes qui ne sont pas du matériel ---------- */
+function grpCleanup(){
+  const gs=S.groupes.filter(g=>isGrpExclu(g.nom)).sort((a,b)=>a.nom.localeCompare(b.nom));
+  const rows=gs.map(g=>{const arts=S.articles.filter(a=>a.groupeId===g.id);let q=0;const st=[];for(const a of arts)for(const s2 of S.stock)if(s2.articleId===a.id){st.push(s2);q+=+s2.qte||0}return{g,arts,st,q}});
+  const nA=rows.reduce((x,r)=>x+r.arts.length,0),nS=rows.reduce((x,r)=>x+r.st.length,0);
+  const absent=GRP_EXCLU.filter(n=>!gs.some(g=>nrm(g.nom)===nrm(n)));
+  const m=openModal(`<header><h2>Groupes hors matériel</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p style="margin:0">Ces ${GRP_EXCLU.length} groupes ne sont pas du matériel. Ils sont désormais <b>ignorés</b> à chaque mise à jour du stock, à l'import des réceptions et à la création d'article. Le bouton ci-dessous les <b>supprime de la base</b> avec leurs articles, leur stock et leurs photos. L'historique des mouvements déjà enregistrés est conservé.</p>
+    ${gs.length?`<div class="tablewrap" style="max-height:46vh;overflow:auto"><table><thead><tr><th>Groupe</th><th class="r">Articles</th><th class="r">Lignes de stock</th><th class="r">Quantité en stock</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.g.nom)}</b></td><td class="r num">${r.arts.length}</td><td class="r num">${r.st.length}</td><td class="r num">${fmt(r.q)}</td></tr>`).join("")}</tbody><tfoot><tr><td><b>TOTAL</b></td><td class="r num"><b>${nA}</b></td><td class="r num"><b>${nS}</b></td><td></td></tr></tfoot></table></div>`:`<p class="lock" style="margin:0">Aucun de ces groupes n'est présent dans la base : rien à supprimer.</p>`}
+    ${absent.length&&gs.length?`<p class="hint" style="margin:0">Déjà absents de la base : ${esc(absent.join(", "))}.</p>`:""}
+    <div id="gx-st" class="hint"></div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button>${gs.length?`<button class="btn danger" id="gx-go">Supprimer ${gs.length} groupe${gs.length>1?"s":""} et ${nA} article${nA>1?"s":""}</button>`:""}</footer>`,{wide:true});
+  const go=$("#gx-go",m);if(go)go.onclick=()=>confirmInline(go,"Confirmer la suppression définitive ?",()=>guard(m,async()=>{
+    const st=$("#gx-st",m),upd={};
+    for(const r of rows){for(const s2 of r.st)upd["data/stock/"+s2.id]=null;for(const a of r.arts){upd["data/articles/"+a.id]=null;if(a.photo&&a.photo.asset)upd["photos/"+a.photo.asset]=null}upd["data/groupes/"+r.g.id]=null}
+    if(ui.groupe&&gs.some(g=>g.id===ui.groupe)){ui.groupe="";saveUi()}
+    await batchWrite(upd,(k,n)=>st.textContent=`Suppression… ${k} / ${n}`);
+    closeModal();toast(`${gs.length} groupe(s) et ${nA} article(s) hors matériel supprimés`)}));
 }
 
 /* ---------- Optimisation des photos déjà enregistrées ---------- */
@@ -1292,7 +1312,7 @@ function refForm(coll,row){
     const nom=coll==="unites"?$("#r-nom",m).value.trim():$("#r-nom",m).value.trim().toUpperCase();if(!nom)throw{message:"Le nom est obligatoire."};
     const data={nom};
     if(coll==="depots"){data.hotel=$("#r-hotel",m).value;data.nom=data.nom.replace(/^(IBIS|NOVOTEL)\s+/,"");if(data.hotel!=="LES2")data.nom=data.hotel+" "+data.nom;data.emplacement=$("#r-emp",m).value.trim().toUpperCase();data.departement=$("#r-dept",m).value}
-    if(coll==="groupes")data.couleur=$("#r-col",m).value;
+    if(coll==="groupes"){if(isGrpExclu(nom))throw{message:"Ce groupe n'est pas du matériel : il ne peut pas être créé."};data.couleur=$("#r-col",m).value}
     if(coll==="unites")data.abrev=$("#r-abr",m).value.trim();
     if(row)await db.collection(coll).doc(row.id).update(data);else await db.collection(coll).add(data);
     closeModal();toast("Enregistré");
@@ -1345,6 +1365,7 @@ function articleForm(row){
   const rm=$("#a-rmph",m);if(rm)rm.onclick=()=>{removePhoto=true;newPhoto=null;$("#a-ph",m).innerHTML=PH_SVG;rm.remove()};
   $("#a-save",m).onclick=()=>guard(m,async()=>{
     const nom=$("#a-nom",m).value.trim().toUpperCase();if(!nom)throw{message:"La désignation est obligatoire."};
+    if(isGidExclu($("#a-grp",m).value))throw{message:"Ce groupe n'est pas du matériel : il n'est plus accepté dans l'appli."};
     const data={code:$("#a-code",m).value.trim().toUpperCase(),nom,groupeId:$("#a-grp",m).value,uniteId:$("#a-un",m).value,hotel:$("#a-hot",m).value,seuil:+$("#a-seuil",m).value||0,reference:$("#a-ref",m).value.trim().toUpperCase(),description:$("#a-desc",m).value.trim().toUpperCase(),maj:Date.now()};
     const oldAsset=row?.photo?.asset;
     if(newPhoto){$(".err",m).textContent="";m.querySelector("#a-save").textContent="Envoi de la photo…";data.photo=await preparePhoto(newPhoto)}
@@ -1790,6 +1811,9 @@ const LIBS={xlsx:"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.m
 const _libP={};
 function loadLib(k){return _libP[k]||(_libP[k]=new Promise((res,rej)=>{const s=document.createElement("script");s.src=LIBS[k];s.onload=()=>res();s.onerror=()=>{delete _libP[k];rej({message:"Impossible de charger l'outil de lecture (vérifiez la connexion internet)."})};document.head.appendChild(s)}))}
 const nrm=s=>String(s??"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/Œ/g,"OE").replace(/[^A-Z0-9]+/g," ").trim();
+/* groupes qui ne sont pas du matériel : ignorés à la mise à jour du stock, aux imports et à la création d'articles */
+const GRP_EXCLU=["NOURRITURES PERISSABLES", "PRODUIT D ENTRETIEN TECHNIQUE", "AUTRES CONSOMMABLES RESTAURANT", "PIECES DE RECHANGE OZTI", "PIECE DE RECHANGE TECHNIQUE", "ELECTRICITE", "CHARCUTERIE", "EPICES", "BOISSON GAZEUSE", "BOF", "PRODUIT D ACCUEIL NON ALIMENTAIRE", "PAPETERIE", "RHUM/ANIS", "CAFE", "POISSON/CRUSTACE/FDM", "PRODUITS DE SOIN", "PATISSERIE/BOULANGERIE", "PRODUIT D ACCUEIL COMMERCIAL", "CREME/YAOURT/LAIT", "PRODUIT D ENTRETIEN HOTEL", "EAU MINERALE", "PATES/RIZ/FARINE", "GIN", "BIERES", "WHISKY", "JUS DE FRUITS", "LIQUEUR/VERMOUTH", "PRODUIT D ACCUEIL ALIMENTAIRE", "EMBALLAGE CUISINE", "IMPRIMES", "BOUCHERIE", "FRUITS ET LEGUMES SECS", "SIROP", "THE", "VIN ROSE", "VIN ROUGE"];
+const _grpEx=new Set(GRP_EXCLU.map(x=>nrm(x)));const isGrpExclu=n=>!!n&&_grpEx.has(nrm(n));const isGidExclu=id=>{const g=id&&S.groupes.find(x=>x.id===id);return!!g&&isGrpExclu(g.nom)};
 const CODE_RE=/^(E\d{3,}|REF\d*|DGN\d*|ZY\d*|\d{5,})$/,STOPW=new Set(["REF","DGN","HP","ZH","CAMBRO","OZTI","NOSTRA","IC","TRSP"]);
 const stripN=n=>n.split(" ").filter(t=>t&&!CODE_RE.test(t)&&!STOPW.has(t)).join(" ");
 const numsOf=n=>(n.match(/\d+/g)||[]).sort().join(",");
@@ -1844,7 +1868,7 @@ function stockCheck(){
     }catch(x){st.textContent="";err.textContent=(x&&x.message)||String(x)}};
   function analyseStock(rows,C){
     const dm=depByName(),match=buildMatcher(true),agg=new Map(),unk=new Map(),mm=new Map();
-    for(const r of rows){if(!r)continue;const dn=String(r[C.dep]??"").trim(),an=String(r[C.art]??"").trim();if(!dn||!an)continue;
+    for(const r of rows){if(!r)continue;const dn=String(r[C.dep]??"").trim(),an=String(r[C.art]??"").trim();if(!dn||!an)continue;if(C.grp>=0&&isGrpExclu(r[C.grp]))continue;
       const q=+String(r[C.q]??0).replace(",",".")||0,dk=nrm(dn);const did=dm.get(dk);if(!did){const u=unk.get(dk)||{nom:dn.replace(/\s+/g," ").toUpperCase(),n:0,q:0};u.n++;u.q+=q;unk.set(dk,u)}
       const key=nrm(an);let a=agg.get(key);if(!a){a={nom:an.replace(/\s+/g," ").trim().toUpperCase(),grp:{},num:"",deps:new Map()};agg.set(key,a)}
       const g=String(r[C.grp]??"").trim();if(g)a.grp[g]=(a.grp[g]||0)+1;if(!a.num&&C.num>=0&&r[C.num]!=null&&String(r[C.num]).trim())a.num=String(r[C.num]).trim();
@@ -1955,7 +1979,7 @@ function majImport(){
     const dm=new Map();for(const d of S.depots){dm.set(nrm(d.nom),d.id);if(d.emplacement&&!dm.has(nrm(d.emplacement)))dm.set(nrm(d.emplacement),d.id)}
     const match=buildMatcher(true),agg=new Map(),ign=new Map(),prot=new Set();let nLines=0,nKeep=0;
     for(const mv of S.mouvements)if(mv.type==="entree"&&/RECEPTION/.test(nrm(mv.note||"")))prot.add(mv.articleId);
-    for(const r of rows){if(!r)continue;const dn=String(r[C.dep]??"").trim(),an=String(r[C.art]??"").replace(/\s+/g," ").trim();if(!dn||!an)continue;nLines++;
+    let nExclu=0;for(const r of rows){if(!r)continue;const dn=String(r[C.dep]??"").trim(),an=String(r[C.art]??"").replace(/\s+/g," ").trim();if(!dn||!an)continue;if(C.grp>=0&&isGrpExclu(r[C.grp])){nExclu++;continue}nLines++;
       const dk=nrm(dn),did=dm.get(dk);if(!did){const u=ign.get(dk)||{nom:dn.toUpperCase(),n:0};u.n++;ign.set(dk,u);continue}nKeep++;
       const q=+String(r[C.q]??0).replace(",",".")||0,key=nrm(an);let a=agg.get(key);
       if(!a){a={nom:an.toUpperCase(),grp:{},un:{},num:"",deps:new Map()};agg.set(key,a)}
@@ -1967,6 +1991,7 @@ function majImport(){
     const pairs=new Map(),creer=[],protL=[],multi=new Map(),xq=new Map(),howM=new Map();let ok=0;
     for(const a of agg.values()){a.grpName=top(a.grp)||"AUTRES MATERIELS";a.unName=top(a.un);let tot=0;for(const q of a.deps.values())tot+=q;a.tot=tot;
       const hit=match(a.nom,a.num);
+      if(hit&&isGidExclu(A()[hit.aid]?.groupeId))continue;
       if(hit&&prot.has(hit.aid)){protL.push({aid:hit.aid,nom:a.nom});continue}
       if(!hit){creer.push(a);continue}
       (multi.get(hit.aid)||multi.set(hit.aid,[]).get(hit.aid)).push(a.nom);xq.set(a.nom,(xq.get(a.nom)||0)+tot);howM.set(hit.aid,hit.how);
@@ -1975,11 +2000,11 @@ function majImport(){
     const art=A(),renames=[];
     for(const[aid,ns]of multi){const ar=art[aid];if(!ar)continue;const opts=[...new Set(ns)].sort((x,y)=>(xq.get(y)||0)-(xq.get(x)||0));if(opts.includes(String(ar.nom||"").replace(/\s+/g," ").trim()))continue;renames.push({aid,cur:ar.nom,opts,nom:opts[0],how:howM.get(aid)||"",on:true})}
     ecarts.sort((x,y)=>Math.abs(y.xl-y.av)-Math.abs(x.xl-x.av));
-    return{nLines,nKeep,ign:[...ign.values()].sort((x,y)=>y.n-x.n),ecarts,creer,renames,prot:protL,ok,nArt:multi.size,tab:"ec",q:""};
+    return{nExclu,nLines,nKeep,ign:[...ign.values()].sort((x,y)=>y.n-x.n),ecarts,creer,renames,prot:protL,ok,nArt:multi.size,tab:"ec",q:""};
   }
   function draw(){
     const dm=D(),a=A(),box=$("#mj-res",m),plus=R.ecarts.filter(e=>e.xl>e.av).length,moins=R.ecarts.length-plus,selN=R.renames.filter(r=>r.on).length;
-    box.innerHTML=`<div class="kpis iv-kpis"><div class="kpi"><span class="eyebrow">Lignes retenues</span><b>${R.nKeep}</b><span class="sub">sur ${R.nLines} · ${R.ign.length} dépôts ignorés</span></div><div class="kpi"><span class="eyebrow">Articles reconnus</span><b>${R.nArt}</b><span class="sub">${R.ok} stocks déjà justes</span></div><div class="kpi ${R.ecarts.length?"alert":""}"><span class="eyebrow">Écarts à corriger</span><b>${R.ecarts.length}</b><span class="sub">${plus} en hausse · ${moins} en baisse</span></div><div class="kpi"><span class="eyebrow">Nouveaux articles</span><b>${R.creer.length}</b><span class="sub">créés sans photo</span></div></div>
+    box.innerHTML=`<div class="kpis iv-kpis"><div class="kpi"><span class="eyebrow">Lignes retenues</span><b>${R.nKeep}</b><span class="sub">sur ${R.nLines} · ${R.ign.length} dépôts ignorés${R.nExclu?` · ${R.nExclu} lignes hors matériel (groupes exclus)`:""}</span></div><div class="kpi"><span class="eyebrow">Articles reconnus</span><b>${R.nArt}</b><span class="sub">${R.ok} stocks déjà justes</span></div><div class="kpi ${R.ecarts.length?"alert":""}"><span class="eyebrow">Écarts à corriger</span><b>${R.ecarts.length}</b><span class="sub">${plus} en hausse · ${moins} en baisse</span></div><div class="kpi"><span class="eyebrow">Nouveaux articles</span><b>${R.creer.length}</b><span class="sub">créés sans photo</span></div></div>
      <div class="seg" role="group" style="align-self:flex-start;flex-wrap:wrap">${[["ec",`Écarts (${R.ecarts.length})`],["cr",`Nouveaux articles (${R.creer.length})`],["nm",`Noms alignés (${R.renames.length})`],["ig",`Dépôts ignorés (${R.ign.length})`],...(R.prot.length?[["pr",`Protégés (${R.prot.length})`]]:[])].map(([k,l])=>`<button data-t="${k}" aria-pressed="${R.tab===k}">${l}</button>`).join("")}</div><div id="mj-tab"></div>`;
     const t=$("#mj-tab",box);
     if(R.tab==="ec")t.innerHTML=R.ecarts.length?`<div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Dépôt</th><th>Article</th><th class="r">Appli (avant)</th><th class="r">Fichier (après)</th><th class="r">Écart</th></tr></thead><tbody>${R.ecarts.slice(0,3000).map(e=>{const d=e.xl-e.av;return`<tr><td>${esc(dm[e.did]?.nom||"")}</td><td><b>${esc(a[e.aid]?.nom||"")}</b></td><td class="r num">${fmt(e.av)}</td><td class="r num"><b>${fmt(e.xl)}</b></td><td class="r num ${d>0?"iv-good":"iv-bad"}"><b>${d>0?"+":""}${fmt(d)}</b></td></tr>`}).join("")}</tbody></table></div>`:`<p class="lock">✓ Aucun écart : le stock de l'appli est déjà identique au fichier.</p>`;
@@ -2419,17 +2444,18 @@ function recImport(){
   $("#ri-tpl",m).onclick=()=>recTemplate().catch(x=>m.querySelector(".err").textContent=x.message||String(x));
   $("#ri-file",m).onchange=async e=>{const f=e.target.files[0];if(!f)return;const st=$("#ri-st",m),err=m.querySelector(".err");err.textContent="";$("#ri-res",m).innerHTML="";$("#ri-go",m).disabled=true;st.textContent="Lecture du fichier…";
     try{const P=/\.pdf$/i.test(f.name)?await parseRecPdf(f,(p,n)=>st.textContent=`Lecture page ${p} / ${n}…`):await parseRecXlsx(f);
-      if(!P.rows.length)throw{message:"Aucune ligne d'article trouvée dans le fichier."};
+      const nEx=P.rows.filter(r=>isGrpExclu(r.groupe)).length;P.rows=P.rows.filter(r=>!isGrpExclu(r.groupe));
+      if(!P.rows.length)throw{message:nEx?`Les ${nEx} lignes du fichier sont dans des groupes « hors matériel » : rien à importer.`:"Aucune ligne d'article trouvée dans le fichier."};
       const dm=depByName(),gm=grpByName(),um=unitByName(),match=buildMatcher();
       R={head:{...P.head,date:today()},file:f.name,rows:P.rows.map(r=>{const q=+String(r.qte??"").replace(/\s/g,"").replace(",",".")||0,hit=match(r.nom,r.num),cr=/^OUI/i.test(nrm(r.creer));
         return{...r,nom:r.nom.replace(/\s+/g," ").trim().toUpperCase(),q,did:dm.get(nrm(r.depot))||dm.get(nrm(r.depot+" MATERIEL"))||dm.get(nrm(r.depot+"S"))||dm.get(nrm(r.depot).replace(/ MATERIELS?$/,""))||"",gid:gm.get(nrm(r.groupe))||"",uid:um.get(nrm(r.unite))||(S.unites.some(u=>u.id==="pce")?"pce":S.unites[0]?.id||""),cr,hit,mode:hit?"exist":"new",on:q>0}})};
-      st.textContent=`${f.name} · ${R.rows.length} lignes · ${R.rows.filter(r=>r.photo).length} photos`;
+      st.textContent=`${f.name} · ${R.rows.length} lignes · ${R.rows.filter(r=>r.photo).length} photos${nEx?` · ${nEx} lignes hors matériel ignorées`:""}`;
       const key=nrm(R.head.fournisseur+" "+R.head.facture+" "+R.head.bl).replace(/ /g,"-").toLowerCase();R.key=key;
       try{const s=await window.FB.get(window.FB.ref(window.FB.rdb,"data/receptions/"+key));R.deja=s.exists()?s.val():null}catch(x){}
       const fk=nrm(R.head.facture);R.dejaMv=fk.length>=4?S.mouvements.filter(mv=>nrm(mv.note).includes(fk)||nrm(mv.numero)===fk).length:0;
       if(R.deja||R.dejaMv)R.rows.forEach(r=>r.on=false);
       drawRec()}catch(x){st.textContent="";err.textContent=(x&&x.message)||String(x)}};
-  function drawRec(){window.__recR=R;const a=A(),box=$("#ri-res",m),h=R.head,deps=sortedDeps(),grs=S.groupes.slice().sort((x,y)=>x.nom.localeCompare(y.nom));
+  function drawRec(){window.__recR=R;const a=A(),box=$("#ri-res",m),h=R.head,deps=sortedDeps(),grs=S.groupes.filter(g=>!isGrpExclu(g.nom)).sort((x,y)=>x.nom.localeCompare(y.nom));
     box.innerHTML=`${R.deja?`<p class="lock warn" style="margin:0">⚠ Cette réception a déjà été importée le ${fdt(R.deja.cree)} (${R.deja.n} lignes). Importer à nouveau ajouterait les quantités une deuxième fois. Les lignes ont été décochées.</p>`:R.dejaMv?`<p class="lock warn" style="margin:0">⚠ La facture ${esc(R.head.facture)} figure déjà dans ${R.dejaMv} mouvement${R.dejaMv>1?"s":""} de stock : cette réception semble déjà enregistrée. Les lignes ont été décochées ; cochez seulement celles qui manquent.</p>`:""}
      <div class="trx-filters"><button class="btn sm" id="ri-all">Tout cocher</button><button class="btn sm ghost" id="ri-none">Tout décocher</button></div>
      <div class="seg" role="group" id="ri-md" style="flex-wrap:wrap">${[["stock","📦 Entrée en stock"],["art","🗂 Articles seulement : créer, compléter, dédoublonner"],["photo","📷 Photos seulement"]].map(([v,l])=>`<button type="button" data-md="${v}" aria-pressed="${(R.md||"stock")===v}">${l}</button>`).join("")}</div>
@@ -2530,7 +2556,7 @@ function invArticles(depId,groupIds,withZero){
 }
 function invCreate(){
   if(!canAdmin){toast("Réservé à l'administrateur.");return}
-  const g=G(),deps=sortedDeps().filter(d=>!isPerte(d)&&(ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2")),grs=S.groupes.slice().sort((x,y)=>x.nom.localeCompare(y.nom));
+  const g=G(),deps=sortedDeps().filter(d=>!isPerte(d)&&(ui.hotel==="ALL"||d.hotel===ui.hotel||d.hotel==="LES2")),grs=S.groupes.filter(g=>!isGrpExclu(g.nom)).sort((x,y)=>x.nom.localeCompare(y.nom));
   const selD=new Set(),selG=new Set(),selA=new Set();let mode="depot",withZero=false,restr=false;
   const m=openModal(`<header><h2>Nouvel inventaire</h2><button class="btn ghost sm" data-close>Fermer</button></header>
    <div class="mb">
