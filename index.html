@@ -795,7 +795,7 @@ function renderToolbar(){
       <button class="btn" id="tb-rst" title="Remettre tous les filtres à zéro : recherche, dépôts, groupe, photo, alertes">↺ Réinitialiser les filtres <span class="badge" id="rst-n" hidden></span></button>
       <div class="grow"></div>
       <button class="btn" id="tb-xl" title="Exporter en Excel les articles affichés selon les filtres (recherche, dépôts, groupe, photo, alertes)">⬇ Exporter la liste</button>
-      <button class="btn" id="tb-pdfdep" title="PDF des matériels disponibles, dépôt par dépôt">📄 PDF par dépôt</button>
+      <button class="btn" id="tb-pdfdep" title="PDF des matériels disponibles, dépôt par dépôt">📄 PDF par dépôt</button>${canAdmin?`<button class="btn" id="tb-phc" title="Ajouter des photos en lot : chaque fichier est rattaché à l'article par son code ou son nom">📷 Photos par code / nom</button>`:""}
       <div class="seg" role="group" aria-label="Affichage"><button data-v="cards" aria-pressed="${ui.view==="cards"}">Fiches</button><button data-v="table" aria-pressed="${ui.view==="table"}">Liste</button></div></div>
       <div class="depchips" id="depchips"></div>`;
   } else if(ui.tab==="mvts"){
@@ -829,6 +829,7 @@ function renderToolbar(){
   on("tb-dup","click",()=>dupTool());
   on("tb-xl","click",()=>exportArticles());
   on("tb-pdfdep","click",()=>stockDepDlg());
+  on("tb-phc","click",()=>photoByCode());
   on("tb-rst","click",()=>resetArtFilters());
   tb.querySelectorAll("[data-pf]").forEach(b=>b.onclick=()=>{ui.photoF=b.dataset.pf;artLimit=120;saveUi();renderToolbar();renderBody()});
   on("tb-mq","input",e=>{ui.mvQ=e.target.value;renderBody()});
@@ -1020,6 +1021,42 @@ async function exportArticles(){
   }catch(x){toast((x&&x.message)||"Export impossible")}
 }
 /* ---------- Matériels disponibles par dépôt (PDF) ---------- */
+/* ---------- Photos en lot : fichier nommé avec le code ou le nom de l'article ---------- */
+function photoByCode(){
+  if(!canAdmin){toast("Réservé à l'administrateur.");return}
+  let rows=[],repl=false;
+  const m=openModal(`<header><h2>Photos par code / nom d'article</h2><button class="btn ghost sm" data-close>Fermer</button></header>
+   <div class="mb"><p style="margin:0">Sélectionnez plusieurs photos d'un coup. Chaque fichier doit porter <b>le code de l'article</b> (ex. <span class="mono">E56471.jpg</span>) ou <b>son nom</b> (ex. <span class="mono">ASSIETTE PLATE 27CM.jpg</span>). L'appli retrouve l'article, réduit la photo automatiquement et l'enregistre sur la fiche.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><input type="file" id="phc-f" multiple accept="image/*" style="max-width:340px;text-transform:none"><label class="check"><input type="checkbox" id="phc-r"> Remplacer les photos déjà présentes</label><span class="hint" id="phc-st"></span></div>
+    <div id="phc-res"></div><div class="err"></div></div>
+   <footer><button class="btn" data-close>Fermer</button><button class="btn primary" id="phc-go" disabled>Enregistrer les photos</button></footer>`,{wide:"xl"});
+  const art=()=>A();
+  function matcher(){
+    const byCode=new Map(),nameTok=new Map(),push=(mm,k,v)=>{let a=mm.get(k);if(!a)mm.set(k,a=new Set());a.add(v)};
+    for(const a of S.articles){const c=nrm(a.code).replace(/ /g,"");if(c)push(byCode,c,a.id);for(const t of nrm(a.nom).split(" "))if(t.length>=5&&/\d/.test(t)&&/[A-Z]/.test(t))push(nameTok,t,a.id)}
+    const mt=buildMatcher(false);
+    return base=>{const k=nrm(base),kc=k.replace(/ /g,"");
+      if(byCode.get(kc)?.size===1)return{aid:[...byCode.get(kc)][0],how:"code"};
+      for(const t of k.split(" ")){if(byCode.get(t)?.size===1&&t.length>=4)return{aid:[...byCode.get(t)][0],how:"code"}}
+      const h=mt(base,base);if(h)return h;
+      for(const t of k.split(" "))if(nameTok.get(t)?.size===1)return{aid:[...nameTok.get(t)][0],how:"référence dans le nom"};
+      return null}}
+  const hasPh=a=>!!(a&&a.photo&&(a.photo.asset||a.photo.data));
+  const setOn=()=>{const seen=new Set();for(const r of rows){r.dup=false;if(r.hit){if(seen.has(r.hit.aid))r.dup=true;seen.add(r.hit.aid)}r.on=!!r.hit&&!r.dup&&(repl||!hasPh(art()[r.hit.aid]))}};
+  function draw(){const a=art(),box=$("#phc-res",m),ok=rows.filter(r=>r.hit).length,n=rows.filter(r=>r.on).length;
+    box.innerHTML=`<p class="hint" style="margin:0">${rows.length} fichier(s) · <b>${ok}</b> article(s) retrouvé(s) · ${rows.length-ok} non trouvé(s) · <b>${n}</b> photo(s) à enregistrer</p>
+     <div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th></th><th>Photo</th><th>Fichier</th><th>Article retrouvé</th><th>Reconnu par</th><th>Photo actuelle</th></tr></thead><tbody>${rows.map((r,i)=>{const x=r.hit&&a[r.hit.aid];return`<tr><td><input type="checkbox" data-i="${i}" ${r.on?"checked":""} ${r.hit?"":"disabled"}></td><td><img src="${r.url}" alt="" style="width:56px;height:56px;object-fit:contain;background:#fff;border-radius:6px"></td><td class="mono" style="text-transform:none">${esc(r.f.name)}</td><td>${x?`<b>${esc(x.nom)}</b><div class="mono hint">${esc(x.code||"")}</div>`:`<span class="hint">Non trouvé : renommez le fichier avec le code ou le nom exact</span>`}</td><td class="hint">${r.hit?esc(r.hit.how)+(r.dup?" · <b>doublon</b> (une seule photo par article)":""):""}</td><td>${x?(hasPh(x)?"Oui":"<b>Non</b>"):""}</td></tr>`}).join("")}</tbody></table></div>`;
+    box.querySelectorAll("[data-i]").forEach(c=>c.onchange=()=>{rows[+c.dataset.i].on=c.checked;const b=$("#phc-go",m),k=rows.filter(r=>r.on).length;b.disabled=!k;b.textContent=k?`Enregistrer ${k} photo${k>1?"s":""}`:"Enregistrer les photos"});
+    const b=$("#phc-go",m);b.disabled=!n;b.textContent=n?`Enregistrer ${n} photo${n>1?"s":""}`:"Enregistrer les photos"}
+  $("#phc-f",m).onchange=e=>{rows.forEach(r=>URL.revokeObjectURL(r.url));const fs=[...e.target.files];const mt=matcher();
+    rows=fs.map(f=>{const base=f.name.replace(/\.[a-z0-9]+$/i,"").replace(/[\s_-]*\(\d+\)$/,"").replace(/[_]+/g," ");return{f,url:URL.createObjectURL(f),hit:mt(base)}});
+    setOn();$("#phc-st",m).textContent="";draw()};
+  $("#phc-r",m).onchange=e=>{repl=e.target.checked;if(rows.length){setOn();draw()}};
+  $("#phc-go",m).onclick=()=>guard(m,async()=>{const todo=rows.filter(r=>r.on&&r.hit),b=$("#phc-go",m);let k=0,okN=0;const errs=[];
+    for(const r of todo){b.textContent=`Envoi ${++k} / ${todo.length}…`;try{const x=art()[r.hit.aid];if(!x)continue;const old=x.photo&&x.photo.asset;const ph=await preparePhoto(r.f);
+        await db.collection("articles").doc(x.id).update({photo:ph,maj:Date.now()});okN++;if(old&&assets){try{await assets.delete(old)}catch(e){}}}catch(e){errs.push(r.f.name)}}
+    rows.forEach(r=>URL.revokeObjectURL(r.url));closeModal();toast(`${okN} photo(s) enregistrée(s)${errs.length?" · "+errs.length+" échec(s)":""}`)});
+}
 function stockDepDlg(){
   const sd=selDeps(),deps=depotsVis().filter(d=>!/PERTE/i.test(d.nom||"")),nOf=id=>artVis().filter(a=>qty(a.id,id)>0).length;
   const pre=new Set(sd.length?sd:deps.map(d=>d.id));
